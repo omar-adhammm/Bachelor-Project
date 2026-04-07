@@ -1,0 +1,26 @@
+# Core ML
+torch>=2.0.0
+transformers>=4.40.0
+datasets>=2.18.0
+scikit-learn>=1.3.0
+numpy>=1.24.0
+pandas>=2.0.0
+
+# API clients
+groq>=0.5.0
+huggingface_hub>=0.20.0
+
+# Explainability
+lime>=0.2.0
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0
+jsonlines>=4.0.0
+tqdm>=4.66.0
+accelerate>=0.27.0
+
+# Notebooks & visualization
+jupyter>=1.0.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
