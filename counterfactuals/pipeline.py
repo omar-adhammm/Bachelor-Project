@@ -9,8 +9,22 @@ import time
 import jsonlines
 from tqdm import tqdm
 from configs.config_loader import load_config
-from counterfactuals.generator import generate_zero_shot, generate_few_shot, generate_retry
-from counterfactuals.verifier import is_acceptable
+
+# Auto-detect environment
+try:
+    import google.colab
+    IN_COLAB = True
+except ImportError:
+    IN_COLAB = False
+
+if IN_COLAB:
+    print("Colab detected — using HuggingFace transformers")
+    from counterfactuals.generator_colab import generate_zero_shot, generate_few_shot, generate_retry
+    from counterfactuals.verifier_colab import is_acceptable
+else:
+    print("Local detected — using Ollama")
+    from counterfactuals.generator import generate_zero_shot, generate_few_shot, generate_retry
+    from counterfactuals.verifier import is_acceptable
 
 config      = load_config()
 MAX_RETRIES = config["counterfactual"]["max_retries"]

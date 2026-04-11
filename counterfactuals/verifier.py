@@ -4,15 +4,12 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from groq import Groq
+import ollama
 from dotenv import load_dotenv
 from configs.config_loader import load_config
 from counterfactuals.prompts import VERIFIER_PROMPT, VERIFIER_WITH_FEEDBACK_PROMPT
 
-load_dotenv()
 config = load_config()
-
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 VALID_LABELS = {"normal", "offensive", "hatespeech"}
 
@@ -31,14 +28,16 @@ def verify_label(text: str, previous_label: str = None) -> str:
     else:
         prompt = VERIFIER_PROMPT.format(text=text)
 
-    response = client.chat.completions.create(
-        model=config["api"]["groq_model"],
+    response = ollama.chat(
+        model="llama3.1:8b",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=10,           # only needs one word
-        temperature=0.0,         # deterministic classification
+        options={
+            "temperature": 0.0,
+            "num_predict": 10,   # same as max_tokens
+        }
     )
 
-    raw = response.choices[0].message.content.strip().lower()
+    raw = response["message"]["content"].strip().lower()
 
     # Clean up any punctuation the model might add
     raw = raw.replace(".", "").replace(",", "").replace("'", "").strip()
