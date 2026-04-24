@@ -33,7 +33,7 @@ models:
   hatebert:
     name: "roberta-base"
     max_length: 128
-    batch_size: 64
+    batch_size: 32
     learning_rate: 1e-5
     epochs: 3
     warmup_steps: 200
@@ -41,7 +41,7 @@ models:
   proposed:
     name: "roberta-base"
     max_length: 128
-    batch_size: 64
+    batch_size: 32
     learning_rate: 1e-5
     epochs: 3
     warmup_steps: 200
