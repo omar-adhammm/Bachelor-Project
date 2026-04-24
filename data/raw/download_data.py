@@ -26,9 +26,9 @@ for post_id, item in raw.items():
 random.seed(42)
 random.shuffle(all_data)
 
-# 70 / 10 / 20 split
+# 80 / 10 / 10 split
 n = len(all_data)
-n_train = int(0.7 * n)
+n_train = int(0.8 * n)
 n_val   = int(0.1 * n)
 
 train = all_data[:n_train]

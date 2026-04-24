@@ -30,17 +30,23 @@ counterfactual:
   strategy: "zero_shot"         # zero_shot or few_shot
 
 models:
-  base_model: "GroNLP/hateBERT"   # shared by all trained models
-  max_length: 128
-  batch_size: 16
-  learning_rate: 2e-5
-  epochs: 5
-  warmup_steps: 100
+  hatebert:
+    name: "roberta-base"
+    max_length: 128
+    batch_size: 64
+    learning_rate: 1e-5
+    epochs: 3
+    warmup_steps: 200
 
-  contrastive:
-    weight: 0.3
-    temperature: 0.07
-    margin: 0.5
+  proposed:
+    name: "roberta-base"
+    max_length: 128
+    batch_size: 64
+    learning_rate: 1e-5
+    epochs: 3
+    warmup_steps: 200
+    contrastive_weight: 0.3
+    contrastive_temperature: 0.07
 
 api:
   groq_model: "llama-3.3-70b-versatile"

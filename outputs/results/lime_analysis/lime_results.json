@@ -1,0 +1,278 @@
+{
+  "baseline": [
+    {
+      "text": "been fuck bitches i been on my grind",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.8135687112808228,
+      "token_weights": {
+        "bitches": 0.6797612773302453,
+        "fuck": 0.06739941604505097,
+        "been": -0.023780859957240257,
+        "grind": 0.04153223082480267,
+        "i": -0.03531795380313712,
+        "my": -0.0248051155290376,
+        "on": 0.02432349580723101
+      }
+    },
+    {
+      "text": "bitches be doing too much be cool hoe",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.8958382606506348,
+      "token_weights": {
+        "bitches": 0.4915839669399556,
+        "hoe": 0.18181726663585798,
+        "much": 0.044073938488866246,
+        "too": 0.04225080305901537,
+        "be": 0.02385844553740576,
+        "doing": 0.012375669553233862,
+        "cool": -0.007716770222842583
+      }
+    },
+    {
+      "text": "<user> <user> no blacks no asians no fems",
+      "true_label": "hatespeech",
+      "pred_label": "hatespeech",
+      "confidence": 0.5708796381950378,
+      "token_weights": {
+        "blacks": 0.28300055001233587,
+        "no": 0.011133270192818684,
+        "fems": 0.13705817229839373,
+        "<user>": -0.022567435497312566,
+        "asians": 0.023544379613113006
+      }
+    },
+    {
+      "text": "<user> satan isn \u2019 t a spider negro",
+      "true_label": "hatespeech",
+      "pred_label": "offensive",
+      "confidence": 0.524854302406311,
+      "token_weights": {
+        "negro": 0.321786454506609,
+        "a": 0.08870876908217554,
+        "\u2019": 0.07853635398990567,
+        "isn": 0.05596319510851486,
+        "satan": 0.023395490191826542,
+        "<user>": 0.018847690561121518,
+        "spider": 0.014365976967551439,
+        "t": 0.00018492959555307245
+      }
+    },
+    {
+      "text": "villanelle likes women who are shorter than her",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.8341115117073059,
+      "token_weights": {
+        "shorter": 0.05438293244522221,
+        "her": -0.05161438911545627,
+        "than": -0.037871371449812376,
+        "likes": -0.018046351411640602,
+        "villanelle": -0.016457208894962667,
+        "are": 0.012247935189729822,
+        "who": 0.005198250567641823,
+        "women": 0.003580325898937009
+      }
+    },
+    {
+      "text": "<user> it actually country but ghetto stole it",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.6916558742523193,
+      "token_weights": {
+        "ghetto": -0.15915777263298694,
+        "but": -0.056469622324495754,
+        "<user>": 0.04794366750822767,
+        "it": 0.005499630922365105,
+        "country": -0.025395121325643456,
+        "actually": -0.012281532286880678,
+        "stole": 0.010300459185262572
+      }
+    }
+  ],
+  "ablation": [
+    {
+      "text": "been fuck bitches i been on my grind",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.8501355648040771,
+      "token_weights": {
+        "bitches": 0.600430372243019,
+        "fuck": 0.04776469108801125,
+        "grind": 0.030952823150349116,
+        "i": -0.021631941045625585,
+        "on": 0.016819676080196636,
+        "been": -0.003915890080136464,
+        "my": -0.0051513317448135506
+      }
+    },
+    {
+      "text": "bitches be doing too much be cool hoe",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.8845029473304749,
+      "token_weights": {
+        "bitches": 0.3946155887229645,
+        "hoe": 0.14852828298812612,
+        "be": 0.02267954172058783,
+        "cool": 0.02781800643957559,
+        "too": 0.01723773486488508,
+        "much": 0.010731919012415663,
+        "doing": -0.002021522407645044
+      }
+    },
+    {
+      "text": "<user> <user> no blacks no asians no fems",
+      "true_label": "hatespeech",
+      "pred_label": "hatespeech",
+      "confidence": 0.6736010909080505,
+      "token_weights": {
+        "blacks": 0.32281036247782363,
+        "fems": 0.1717769945257617,
+        "no": 0.09286456564809831,
+        "asians": 0.04118323744667714,
+        "<user>": -0.004237863153802382
+      }
+    },
+    {
+      "text": "<user> satan isn \u2019 t a spider negro",
+      "true_label": "hatespeech",
+      "pred_label": "hatespeech",
+      "confidence": 0.5974066257476807,
+      "token_weights": {
+        "negro": 0.37480554048230097,
+        "spider": 0.22509706099950208,
+        "a": 0.11941012954670518,
+        "satan": 0.11255972076022104,
+        "<user>": -0.0398511749457576,
+        "\u2019": 0.02648871008320834,
+        "isn": 0.015955071974157155,
+        "t": -0.0044601638277521425
+      }
+    },
+    {
+      "text": "villanelle likes women who are shorter than her",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.5159651637077332,
+      "token_weights": {
+        "her": -0.11501815503749503,
+        "than": -0.11486388422000814,
+        "likes": -0.08721723622521195,
+        "shorter": 0.06162566194045315,
+        "who": 0.04402022329374909,
+        "women": -0.03109443848157087,
+        "villanelle": -0.028605751784796914,
+        "are": -0.020289072075596597
+      }
+    },
+    {
+      "text": "<user> it actually country but ghetto stole it",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.6713181734085083,
+      "token_weights": {
+        "ghetto": -0.18860379821665624,
+        "<user>": 0.09311292390768638,
+        "stole": 0.053801471690666486,
+        "country": -0.04100910223523602,
+        "actually": -0.03307762881378788,
+        "but": -0.028103113719649714,
+        "it": -0.0020519420891318744
+      }
+    }
+  ],
+  "proposed": [
+    {
+      "text": "been fuck bitches i been on my grind",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.7427672147750854,
+      "token_weights": {
+        "bitches": 0.5889109387000875,
+        "fuck": 0.06185899882100562,
+        "grind": 0.03953250327846889,
+        "been": -0.011923158847547187,
+        "on": 0.022900667719509396,
+        "i": -0.021158145502595614,
+        "my": 0.015321283785869331
+      }
+    },
+    {
+      "text": "bitches be doing too much be cool hoe",
+      "true_label": "offensive",
+      "pred_label": "offensive",
+      "confidence": 0.7960761785507202,
+      "token_weights": {
+        "bitches": 0.5327149395008167,
+        "hoe": 0.11505973735260447,
+        "be": 0.005780016878182613,
+        "cool": 0.005185971864857248,
+        "much": -0.00394183052114128,
+        "too": 0.002135601136181589,
+        "doing": -0.0011011130722407064
+      }
+    },
+    {
+      "text": "<user> <user> no blacks no asians no fems",
+      "true_label": "hatespeech",
+      "pred_label": "normal",
+      "confidence": 0.618259608745575,
+      "token_weights": {
+        "fems": -0.2277290125417336,
+        "<user>": 0.09621828146036741,
+        "blacks": -0.12181481138388381,
+        "no": -0.03401344864603904,
+        "asians": -0.07687252937231244
+      }
+    },
+    {
+      "text": "<user> satan isn \u2019 t a spider negro",
+      "true_label": "hatespeech",
+      "pred_label": "offensive",
+      "confidence": 0.4618566036224365,
+      "token_weights": {
+        "negro": 0.23127976246321855,
+        "spider": 0.08123901312364154,
+        "a": 0.06596050665763047,
+        "\u2019": 0.06204009275797347,
+        "satan": 0.05436818987455187,
+        "isn": 0.05034089475037751,
+        "t": 0.01483411246970507,
+        "<user>": 0.0006639321811125688
+      }
+    },
+    {
+      "text": "villanelle likes women who are shorter than her",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.6011016964912415,
+      "token_weights": {
+        "likes": -0.09690267658114451,
+        "than": -0.07820191164631442,
+        "women": -0.06183510856023856,
+        "her": -0.05842182656153359,
+        "are": -0.034364079232471804,
+        "villanelle": -0.02565470446978125,
+        "shorter": 0.02557306777377923,
+        "who": 0.006041030850822002
+      }
+    },
+    {
+      "text": "<user> it actually country but ghetto stole it",
+      "true_label": "normal",
+      "pred_label": "normal",
+      "confidence": 0.6653040647506714,
+      "token_weights": {
+        "ghetto": -0.12180326531751967,
+        "but": -0.051719931624046256,
+        "stole": -0.047647082628290156,
+        "<user>": 0.046992982059032476,
+        "actually": -0.033696669431729435,
+        "country": -0.031616714599747936,
+        "it": -0.002515669583064683
+      }
+    }
+  ]
+}
