@@ -14,16 +14,15 @@ config = load_config()
 
 class SupervisedContrastiveLoss(nn.Module):
     """
-    Supervised Contrastive Loss for CF pairs.
-
-    For each (original, counterfactual) pair:
-    - original is harmful (label 1 or 2)
-    - counterfactual is normal (label 0)
-
-    The loss pushes their embeddings APART in the representation space,
-    forcing the model to learn semantic intent rather than surface patterns.
-
-    Based on: Khosla et al. (2020) "Supervised Contrastive Learning"
+    Supervised Contrastive Loss with in-batch negatives.
+    
+    For a batch of (original, CF) pairs:
+    - Pulls same-class examples together
+    - Pushes different-class examples apart
+    - Uses ALL in-batch relationships, not just pairs
+    
+    Based on: Khosla et al. (2020) Supervised Contrastive Learning
+    and SimCSE (Gao et al. 2021)
     """
 
     def __init__(self, temperature: float = None):
@@ -37,62 +36,65 @@ class SupervisedContrastiveLoss(nn.Module):
         orig_labels:     torch.Tensor,
         cf_labels:       torch.Tensor,
     ) -> torch.Tensor:
-        """
-        Args:
-            orig_embeddings: [batch_size, hidden_size] — embeddings of original harmful texts
-            cf_embeddings:   [batch_size, hidden_size] — embeddings of counterfactuals
-            orig_labels:     [batch_size] — labels of originals (1 or 2)
-            cf_labels:       [batch_size] — labels of CFs (always 0)
 
-        Returns:
-            scalar loss value
-        """
         batch_size = orig_embeddings.size(0)
+        device     = orig_embeddings.device
 
-        # Normalize embeddings to unit sphere
-        orig_embeddings = F.normalize(orig_embeddings, dim=1)
-        cf_embeddings   = F.normalize(cf_embeddings,   dim=1)
+        # Normalize embeddings
+        orig_norm = F.normalize(orig_embeddings, dim=1)
+        cf_norm   = F.normalize(cf_embeddings,   dim=1)
 
-        # Stack all embeddings and labels together
-        # Shape: [2 * batch_size, hidden_size]
-        all_embeddings = torch.cat([orig_embeddings, cf_embeddings], dim=0)
-        all_labels     = torch.cat([orig_labels, cf_labels],         dim=0)
+        # Stack all embeddings and labels
+        all_emb    = torch.cat([orig_norm, cf_norm], dim=0)   # [2B, H]
+        all_labels = torch.cat([orig_labels, cf_labels], dim=0) # [2B]
 
-        # Compute pairwise cosine similarity matrix
-        # Shape: [2B, 2B]
-        similarity_matrix = torch.matmul(all_embeddings, all_embeddings.T) / self.temperature
+        n = 2 * batch_size
 
-        # Mask out self-similarity (diagonal)
-        mask_self = torch.eye(2 * batch_size, dtype=torch.bool, device=all_embeddings.device)
-        similarity_matrix = similarity_matrix.masked_fill(mask_self, float('-inf'))
+        # Compute similarity matrix — clamp to avoid extreme values
+        sim = torch.matmul(all_emb, all_emb.T) / self.temperature  # [2B, 2B]
+        sim = torch.clamp(sim, min=-50, max=50)  # prevent overflow
 
-        # Build positive pair mask — same label = positive pair
-        # Shape: [2B, 2B]
-        labels_row = all_labels.unsqueeze(0)  # [1, 2B]
-        labels_col = all_labels.unsqueeze(1)  # [2B, 1]
-        mask_positive = (labels_row == labels_col) & ~mask_self
+        # Mask diagonal (self-similarity)
+        mask_self = torch.eye(n, dtype=torch.bool, device=device)
 
-        # For each anchor, compute log-softmax over all pairs
-        log_prob = F.log_softmax(similarity_matrix, dim=1)
+        # Positive pair mask: same label, not self
+        labels_i = all_labels.unsqueeze(1)
+        labels_j = all_labels.unsqueeze(0)
+        mask_pos = (labels_i == labels_j) & ~mask_self
 
-        # Mean log-prob over positive pairs only
-        pos_count = mask_positive.sum(dim=1).float()
+        # Skip if no positive pairs exist
+        if not mask_pos.any():
+            return torch.tensor(0.0, device=device, requires_grad=True)
+
+        # For numerical stability — subtract max before exp (stable softmax)
+        # Set self-similarity to very negative number
+        sim_masked = sim.clone()
+        sim_masked[mask_self] = -1e9
+
+        # Compute log sum exp over all non-self pairs
+        log_sum_exp = torch.logsumexp(sim_masked, dim=1)  # [2B]
+
+        # For each anchor, compute mean log prob over positive pairs
+        loss_per_anchor = torch.zeros(n, device=device)
+
+        for i in range(n):
+            pos_indices = mask_pos[i].nonzero(as_tuple=True)[0]
+            if len(pos_indices) == 0:
+                continue
+            # log prob for each positive pair
+            log_probs = sim[i, pos_indices] - log_sum_exp[i]
+            loss_per_anchor[i] = -log_probs.mean()
+
+        # Average over anchors that have positives
+        has_pos = mask_pos.any(dim=1)
+        if not has_pos.any():
+            return torch.tensor(0.0, device=device, requires_grad=True)
+
+        valid_losses = loss_per_anchor[has_pos]
+        # Final safety check
+        valid_losses = torch.nan_to_num(valid_losses, nan=0.0)
         
-        # Skip anchors with no positive pairs
-        has_positives = pos_count > 0
-        
-        if not has_positives.any():
-            return torch.tensor(0.0, device=all_embeddings.device, requires_grad=True)
-
-        loss = -(log_prob * mask_positive.float()).sum(dim=1) / torch.clamp(pos_count, min=1.0)
-        
-        # Only average over anchors that have positive pairs
-        loss = loss[has_positives]
-        
-        # Clamp to avoid nan from edge cases
-        loss = torch.nan_to_num(loss, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        return loss.mean()
+        return valid_losses.mean()
 
 
 class CFContrastiveLoss(nn.Module):
@@ -138,47 +140,38 @@ class CFContrastiveLoss(nn.Module):
 
 class CombinedLoss(nn.Module):
     """
-    Final loss used in the proposed model:
-    L_total = L_CE + lambda * L_contrastive
-
-    L_CE         = standard cross-entropy on all examples
-    L_contrastive = CF pairwise contrastive loss
-    lambda        = contrastive_weight from config (default 0.3)
+    Final loss: L_total = L_CE + lambda * L_supervised_contrastive
     """
 
     def __init__(self):
         super().__init__()
         self.ce_loss          = nn.CrossEntropyLoss()
-        self.contrastive_loss = CFContrastiveLoss()
+        self.contrastive_loss = SupervisedContrastiveLoss()
         self.lambda_weight    = config["models"]["proposed"]["contrastive_weight"]
 
     def forward(
         self,
-        # CE loss inputs
-        logits:          torch.Tensor,   # [batch_size, num_classes]
-        labels:          torch.Tensor,   # [batch_size]
-        # Contrastive loss inputs
-        orig_embeddings: torch.Tensor,   # [batch_size, hidden_size]
-        cf_embeddings:   torch.Tensor,   # [batch_size, hidden_size]
+        logits:          torch.Tensor,
+        labels:          torch.Tensor,
+        orig_embeddings: torch.Tensor,
+        cf_embeddings:   torch.Tensor,
+        orig_labels:     torch.Tensor,
+        cf_labels:       torch.Tensor,
     ) -> tuple[torch.Tensor, dict]:
-        """
-        Returns:
-            total_loss: scalar
-            loss_dict:  breakdown for logging
-        """
-        ce   = self.ce_loss(logits, labels)
-        cont = self.contrastive_loss(orig_embeddings, cf_embeddings)
 
+        ce   = self.ce_loss(logits, labels)
+        cont = self.contrastive_loss(
+            orig_embeddings, cf_embeddings,
+            orig_labels, cf_labels
+        )
         total = ce + self.lambda_weight * cont
 
-        loss_dict = {
+        return total, {
             "total":       total.item(),
             "ce":          ce.item(),
             "contrastive": cont.item(),
             "lambda":      self.lambda_weight,
         }
-
-        return total, loss_dict
 
 
 # ── Smoke test ────────────────────────────────────────────────────────────────
@@ -195,8 +188,8 @@ if __name__ == "__main__":
     cf_emb   = torch.randn(batch_size, hidden_size)
     logits   = torch.randn(batch_size, num_classes)
     labels   = torch.randint(0, num_classes, (batch_size,))
-    orig_labels = torch.tensor([1, 2, 1, 2, 1, 2, 1, 2], dtype=torch.long)
-    cf_labels   = torch.zeros(batch_size, dtype=torch.long)
+    orig_labels = torch.tensor([1, 1, 2, 2, 1, 1, 2, 2], dtype=torch.long)
+    cf_labels   = torch.zeros(batch_size, dtype=torch.long) 
 
     print("── CFContrastiveLoss ──")
     cf_loss = CFContrastiveLoss()
@@ -214,7 +207,11 @@ if __name__ == "__main__":
 
     print("\n── CombinedLoss ──")
     combined = CombinedLoss()
-    total_loss, loss_dict = combined(logits, labels, orig_emb, cf_emb)
+    total_loss, loss_dict = combined(
+        logits, labels,
+        orig_emb, cf_emb,
+        orig_labels, cf_labels  # add these two arguments
+    )
     print(f"  Total loss:       {loss_dict['total']:.4f}")
     print(f"  CE loss:          {loss_dict['ce']:.4f}")
     print(f"  Contrastive loss: {loss_dict['contrastive']:.4f}")
@@ -226,7 +223,7 @@ if __name__ == "__main__":
     orig_emb.requires_grad_(True)
     cf_emb.requires_grad_(True)
     logits.requires_grad_(True)
-    total_loss, _ = combined(logits, labels, orig_emb, cf_emb)
+    total_loss, _ = combined(logits, labels, orig_emb, cf_emb, orig_labels, cf_labels)
     total_loss.backward()
     assert orig_emb.grad is not None, "No gradient for orig_embeddings!"
     assert cf_emb.grad is not None,   "No gradient for cf_embeddings!"

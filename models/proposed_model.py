@@ -86,21 +86,12 @@ class ProposedModel(nn.Module):
         cf_labels:           torch.Tensor,
     ) -> dict:
         """
-        Forward pass for CF pairs used during contrastive training.
-        Computes loss combining CE and pairwise contrastive components.
-        
-        Args:
-            orig_input_ids:      [batch_size, seq_len]
-            orig_attention_mask: [batch_size, seq_len]
-            orig_labels:         [batch_size] — labels of original texts (1 or 2 for harmful)
-            cf_input_ids:        [batch_size, seq_len]
-            cf_attention_mask:   [batch_size, seq_len]
-            cf_labels:           [batch_size] — labels of CFs (always 0 for normal)
-
-        Returns:
-            dict with keys: loss, loss_breakdown, orig_logits, orig_embeddings,
-                           cf_logits, cf_embeddings
+        Forward pass for CF pairs using supervised contrastive loss.
+        Uses ALL in-batch relationships between examples of the same/different class.
         """
+        from training.contrastive_loss import SupervisedContrastiveLoss
+        import torch.nn as nn
+
         # Process originals
         orig_outputs = self.model(
             input_ids=orig_input_ids,
@@ -119,22 +110,26 @@ class ProposedModel(nn.Module):
         cf_embeddings = cf_outputs.hidden_states[-1][:, 0, :]
         cf_logits     = cf_outputs.logits
 
-        # Compute combined loss
+        # CE loss on originals
         ce_loss = nn.CrossEntropyLoss()(orig_logits, orig_labels)
-        contrastive_loss = CFContrastiveLoss()
-        cont_loss = contrastive_loss(orig_embeddings, cf_embeddings)
 
-        # Weighted combination
+        # Supervised contrastive loss using all in-batch relationships
+        sup_cont_loss = SupervisedContrastiveLoss()
+        cont_loss = sup_cont_loss(
+            orig_embeddings, cf_embeddings,
+            orig_labels, cf_labels,
+        )
+
         lambda_weight = config["models"]["proposed"]["contrastive_weight"]
-        total_loss = ce_loss + lambda_weight * cont_loss
+        total_loss    = ce_loss + lambda_weight * cont_loss
 
         return {
             "loss": total_loss,
             "loss_breakdown": {
-                "total":        total_loss.item(),
-                "ce":           ce_loss.item(),
-                "contrastive":  cont_loss.item(),
-                "lambda":       lambda_weight,
+                "total":       total_loss.item(),
+                "ce":          ce_loss.item(),
+                "contrastive": cont_loss.item(),
+                "lambda":      lambda_weight,
             },
             "orig_logits":     orig_logits,
             "orig_embeddings": orig_embeddings,
