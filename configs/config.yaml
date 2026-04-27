@@ -45,8 +45,8 @@ models:
     learning_rate: 2e-5
     epochs: 5
     warmup_steps: 200
-    contrastive_weight: 0.3
-    contrastive_temperature: 0.07
+    contrastive_weight: 0.1
+    contrastive_temperature: 0.1
 
 api:
   groq_model: "llama-3.3-70b-versatile"
