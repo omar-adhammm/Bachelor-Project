@@ -113,12 +113,8 @@ class ProposedModel(nn.Module):
         # CE loss on originals
         ce_loss = nn.CrossEntropyLoss()(orig_logits, orig_labels)
 
-        # Supervised contrastive loss using all in-batch relationships
-        sup_cont_loss = SupervisedContrastiveLoss()
-        cont_loss = sup_cont_loss(
-            orig_embeddings, cf_embeddings,
-            orig_labels, cf_labels,
-        )
+        cont_loss_fn = CFContrastiveLoss()
+        cont_loss = cont_loss_fn(orig_embeddings, cf_embeddings)
 
         lambda_weight = config["models"]["proposed"]["contrastive_weight"]
         total_loss    = ce_loss + lambda_weight * cont_loss
