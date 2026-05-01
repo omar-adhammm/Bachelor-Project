@@ -156,23 +156,23 @@ class ModelTrainer:
         print(f"  CF Val:   {len(cf_val)} pairs, {len(self.dataloaders['cf_val'])} batches\n")
 
     def setup_optimizers(self):
-        """Initialize optimizers and schedulers for all models."""
         print("=== Setting up optimizers ===\n")
-        
-        lr = float(config["models"]["hatebert"]["learning_rate"])
-        warmup_steps = int(config["models"]["hatebert"]["warmup_steps"])
-        
+
         for model_name, model in self.models.items():
-            # Optimizer
+            # Use model-specific learning rate if available
+            if model_name == "proposed" and "learning_rate" in config["models"]["proposed"]:
+                lr = float(config["models"]["proposed"]["learning_rate"])
+            else:
+                lr = float(config["models"]["hatebert"]["learning_rate"])
+
+            warmup_steps = int(config["models"]["hatebert"]["warmup_steps"])
+
             self.optimizers[model_name] = torch.optim.AdamW(
                 model.parameters(),
                 lr=lr,
                 weight_decay=0.01,
             )
-            
-            
             print(f"  {model_name:12s}: LR={lr}, warmup_steps={warmup_steps}")
-        
         print()
 
     def train_baseline_epoch(self, epoch):
