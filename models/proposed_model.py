@@ -84,22 +84,27 @@ class ProposedModel(nn.Module):
         cf_input_ids:        torch.Tensor,
         cf_attention_mask:   torch.Tensor,
         cf_labels:           torch.Tensor,
+        orig_rationale_mask: torch.Tensor = None,
     ) -> dict:
         """
-        Forward pass for CF pairs using supervised contrastive loss.
-        Uses ALL in-batch relationships between examples of the same/different class.
+        Forward pass with rationale-guided contrastive loss.
+        If orig_rationale_mask is provided, uses rationale token embeddings.
+        Falls back to CLS-based pairwise loss if not provided.
         """
-        from training.contrastive_loss import SupervisedContrastiveLoss
-        import torch.nn as nn
+        from training.contrastive_loss import (
+            RationaleGuidedContrastiveLoss,
+            CFContrastiveLoss,
+        )
 
-        # Process originals
+        # Process originals — need full hidden states for rationale extraction
         orig_outputs = self.model(
             input_ids=orig_input_ids,
             attention_mask=orig_attention_mask,
             output_hidden_states=True,
         )
-        orig_embeddings = orig_outputs.hidden_states[-1][:, 0, :]
-        orig_logits     = orig_outputs.logits
+        orig_hidden = orig_outputs.hidden_states[-1]  # [B, seq, hidden]
+        orig_emb    = orig_hidden[:, 0, :]            # CLS for classification
+        orig_logits = orig_outputs.logits
 
         # Process counterfactuals
         cf_outputs = self.model(
@@ -107,14 +112,29 @@ class ProposedModel(nn.Module):
             attention_mask=cf_attention_mask,
             output_hidden_states=True,
         )
-        cf_embeddings = cf_outputs.hidden_states[-1][:, 0, :]
-        cf_logits     = cf_outputs.logits
+        cf_hidden = cf_outputs.hidden_states[-1]
+        cf_emb    = cf_hidden[:, 0, :]
+        cf_logits = cf_outputs.logits
 
         # CE loss on originals
         ce_loss = nn.CrossEntropyLoss()(orig_logits, orig_labels)
 
-        cont_loss_fn = CFContrastiveLoss()
-        cont_loss = cont_loss_fn(orig_embeddings, cf_embeddings)
+        # Choose contrastive loss
+        if orig_rationale_mask is not None:
+            # Rationale-guided: use rationale token embeddings
+            cont_fn   = RationaleGuidedContrastiveLoss()
+            cont_loss = cont_fn(
+                orig_hidden, cf_hidden,
+                orig_rationale_mask,
+                orig_attention_mask,
+                cf_attention_mask,
+            )
+            loss_type = "rationale_guided"
+        else:
+            # Fallback: pairwise CLS contrastive
+            cont_fn   = CFContrastiveLoss()
+            cont_loss = cont_fn(orig_emb, cf_emb)
+            loss_type = "pairwise_cls"
 
         lambda_weight = config["models"]["proposed"]["contrastive_weight"]
         total_loss    = ce_loss + lambda_weight * cont_loss
@@ -126,11 +146,12 @@ class ProposedModel(nn.Module):
                 "ce":          ce_loss.item(),
                 "contrastive": cont_loss.item(),
                 "lambda":      lambda_weight,
+                "loss_type":   loss_type,
             },
             "orig_logits":     orig_logits,
-            "orig_embeddings": orig_embeddings,
+            "orig_embeddings": orig_emb,
             "cf_logits":       cf_logits,
-            "cf_embeddings":   cf_embeddings,
+            "cf_embeddings":   cf_emb,
         }
 
     def get_embeddings(

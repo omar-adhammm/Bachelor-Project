@@ -11,6 +11,84 @@ from configs.config_loader import load_config
 
 config = load_config()
 
+class RationaleGuidedContrastiveLoss(nn.Module):
+    """
+    Rationale-Guided Contrastive Loss.
+
+    Instead of using the CLS token embedding, uses the average
+    of rationale token embeddings (the specific harmful tokens
+    highlighted by human annotators in HateXplain).
+
+    This makes the contrastive signal more precise — it pushes apart
+    specifically the harmful intent tokens rather than the whole sentence.
+
+    If no rationale tokens exist for an example, falls back to CLS embedding.
+    """
+
+    def __init__(self, temperature: float = None, margin: float = 1.0):
+        super().__init__()
+        self.temperature = temperature or config["models"]["proposed"]["contrastive_temperature"]
+        self.margin      = margin
+
+    def get_rationale_embedding(
+        self,
+        hidden_states:   torch.Tensor,  # [batch, seq_len, hidden]
+        rationale_mask:  torch.Tensor,  # [batch, seq_len]
+        attention_mask:  torch.Tensor,  # [batch, seq_len]
+    ) -> torch.Tensor:
+        """
+        Extract rationale-weighted embeddings.
+        Falls back to CLS token if no rationale tokens present.
+        Returns: [batch, hidden]
+        """
+        batch_size  = hidden_states.size(0)
+        hidden_size = hidden_states.size(2)
+        result      = torch.zeros(batch_size, hidden_size,
+                                  device=hidden_states.device)
+
+        for i in range(batch_size):
+            rat_mask = rationale_mask[i]  # [seq_len]
+            n_rat    = rat_mask.sum().item()
+
+            if n_rat > 0:
+                # Average of rationale token embeddings
+                rat_emb  = hidden_states[i] * rat_mask.unsqueeze(-1)
+                result[i] = rat_emb.sum(dim=0) / n_rat
+            else:
+                # Fallback to CLS token
+                result[i] = hidden_states[i][0]
+
+        return result
+
+    def forward(
+        self,
+        orig_hidden_states:  torch.Tensor,  # [batch, seq_len, hidden]
+        cf_hidden_states:    torch.Tensor,  # [batch, seq_len, hidden]
+        orig_rationale_mask: torch.Tensor,  # [batch, seq_len]
+        orig_attention_mask: torch.Tensor,  # [batch, seq_len]
+        cf_attention_mask:   torch.Tensor,  # [batch, seq_len]
+    ) -> torch.Tensor:
+        """
+        Compute pairwise contrastive loss using rationale embeddings.
+        """
+        # Get rationale-guided embeddings
+        orig_emb = self.get_rationale_embedding(
+            orig_hidden_states, orig_rationale_mask, orig_attention_mask
+        )
+        # For CF: use CLS token (CFs have no rationale annotations)
+        cf_emb = cf_hidden_states[:, 0, :]
+
+        # Normalize
+        orig_norm = F.normalize(orig_emb, dim=1)
+        cf_norm   = F.normalize(cf_emb,   dim=1)
+
+        # Pairwise cosine similarity
+        pair_sim = (orig_norm * cf_norm).sum(dim=1)
+
+        # Push apart — loss increases when pair is too similar
+        loss = F.relu(pair_sim + self.margin)
+        return loss.mean()
+
 
 class SupervisedContrastiveLoss(nn.Module):
     """

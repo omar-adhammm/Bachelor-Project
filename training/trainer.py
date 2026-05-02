@@ -129,10 +129,19 @@ class ModelTrainer:
             )
         
         cf_pairs = load_cf_pairs(cf_path)
+
+        # Build rationale lookup from training data
+        print("Building rationale lookup...")
+        rationale_lookup = {}
+        for ex in train_examples:
+            if ex.get("rationale_mask") and any(ex["rationale_mask"]):
+                rationale_lookup[ex["id"]] = ex["rationale_mask"]
+
+        print(f"  Examples with rationales: {len(rationale_lookup)}")
         
         # Create contrastive dataset
         print("Creating contrastive dataloaders...")
-        cf_dataset = ContrastiveHateDataset(cf_pairs, tokenizer, max_length)
+        cf_dataset = ContrastiveHateDataset(cf_pairs, tokenizer, max_length, rationale_lookup=rationale_lookup)
         
         # Split CF pairs: use 90% for training, 10% for validation
         cf_train_size = int(0.9 * len(cf_dataset))
@@ -203,16 +212,13 @@ class ModelTrainer:
         return avg_loss
 
     def train_contrastive_epoch(self, epoch, model_name):
-        """Train proposed or ablation model using BOTH standard data and CF pairs."""
         self.models[model_name].train()
-        total_loss = 0.0
+        total_loss  = 0.0
         num_batches = 0
 
-        # Create iterators for both dataloaders
         standard_iter = iter(self.dataloaders["baseline_train"])
         cf_iter       = iter(self.dataloaders["cf_train"])
 
-        # Use the longer one as the loop length
         num_steps = max(
             len(self.dataloaders["baseline_train"]),
             len(self.dataloaders["cf_train"]),
@@ -223,24 +229,21 @@ class ModelTrainer:
 
         for step in pbar:
             self.optimizers[model_name].zero_grad()
-            batch_loss = torch.tensor(0.0, requires_grad=False)
-            computed = False
+            batch_loss = None
 
-            # ── Standard batch (CE loss on original examples) ──
+            # Standard batch — CE loss
             try:
-                std_batch = next(standard_iter)
+                std_batch      = next(standard_iter)
                 input_ids      = std_batch["input_ids"].to(self.device)
                 attention_mask = std_batch["attention_mask"].to(self.device)
                 labels         = std_batch["label"].to(self.device)
 
                 std_output = self.models[model_name](input_ids, attention_mask, labels)
-                std_loss   = std_output["loss"]
-                batch_loss = std_loss
-                computed   = True
+                batch_loss = std_output["loss"]
             except StopIteration:
                 pass
 
-            # ── CF batch (CE + contrastive loss) ──
+            # CF batch — contrastive loss with rationale masks
             try:
                 cf_batch = next(cf_iter)
                 orig_input_ids      = cf_batch["orig_input_ids"].to(self.device)
@@ -250,33 +253,38 @@ class ModelTrainer:
                 cf_attention_mask   = cf_batch["cf_attention_mask"].to(self.device)
                 cf_labels           = cf_batch["cf_label"].to(self.device)
 
+                # Get rationale masks from standard dataloader if available
+                # Match CF batch to standard batch by index for rationale lookup
+                orig_rationale_mask = cf_batch.get("orig_rationale_mask")
+                if orig_rationale_mask is not None:
+                    orig_rationale_mask = orig_rationale_mask.to(self.device)
+
                 cf_output = self.models[model_name].forward_pair(
                     orig_input_ids, orig_attention_mask, orig_labels,
                     cf_input_ids,   cf_attention_mask,   cf_labels,
+                    orig_rationale_mask=orig_rationale_mask,
                 )
 
-                if computed:
+                if batch_loss is not None:
                     batch_loss = batch_loss + cf_output["loss"]
                 else:
                     batch_loss = cf_output["loss"]
-                    computed = True
+
             except StopIteration:
                 pass
 
-            if computed:
+            if batch_loss is not None:
                 batch_loss.backward()
                 torch.nn.utils.clip_grad_norm_(
                     self.models[model_name].parameters(), 1.0
                 )
                 self.optimizers[model_name].step()
                 self.schedulers[model_name].step()
-
                 total_loss  += batch_loss.item()
                 num_batches += 1
                 pbar.set_postfix({"loss": f"{batch_loss.item():.4f}"})
 
-        avg_loss = total_loss / max(num_batches, 1)
-        return avg_loss
+        return total_loss / max(num_batches, 1)
 
     def evaluate(self, model_name, dataloader_key):
         """Evaluate a model on a validation/test set."""

@@ -38,7 +38,7 @@ class HateXplainDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, idx):
-        ex = self.examples[idx]
+        ex       = self.examples[idx]
         encoding = self.tokenizer(
             ex["text"],
             truncation=True,
@@ -46,13 +46,58 @@ class HateXplainDataset(Dataset):
             max_length=self.max_length,
             return_tensors="pt",
         )
+
+        # Build token-level rationale mask aligned to tokenizer output
+        # Map word-level rationale mask to subword tokens
+        rationale_mask = self._align_rationale_mask(
+            ex["text"],
+            ex.get("rationale_mask", []),
+            encoding,
+        )
+
         return {
             "input_ids":      encoding["input_ids"].squeeze(0),
             "attention_mask": encoding["attention_mask"].squeeze(0),
+            "rationale_mask": rationale_mask,
             "label":          torch.tensor(ex["label_id"], dtype=torch.long),
             "text":           ex["text"],
             "id":             ex["id"],
         }
+
+    def _align_rationale_mask(
+        self,
+        text:          str,
+        word_rationale: list,
+        encoding,
+    ) -> torch.Tensor:
+        """
+        Align word-level rationale mask to subword tokenizer output.
+        Returns a tensor of shape [max_length] with 1 for rationale tokens.
+        """
+        mask = torch.zeros(self.max_length, dtype=torch.float)
+
+        if not word_rationale or not any(word_rationale):
+            return mask
+
+        words = text.split()
+        if len(word_rationale) != len(words):
+            return mask  # mismatch — return empty mask
+
+        # Use word_ids to map words to subword tokens
+        try:
+            word_ids = encoding.word_ids(batch_index=0)
+        except Exception:
+            return mask
+
+        for token_idx, word_idx in enumerate(word_ids):
+            if word_idx is None:
+                continue
+            if token_idx >= self.max_length:
+                break
+            if word_idx < len(word_rationale) and word_rationale[word_idx] == 1:
+                mask[token_idx] = 1.0
+
+        return mask
 
 
 class ContrastiveHateDataset(Dataset):
@@ -67,10 +112,17 @@ class ContrastiveHateDataset(Dataset):
         }
     """
 
-    def __init__(self, pairs: list[dict], tokenizer, max_length: int = 128):
-        self.pairs      = pairs
-        self.tokenizer  = tokenizer
-        self.max_length = max_length
+    def __init__(
+        self,
+        pairs:      list[dict],
+        tokenizer,
+        max_length: int = 128,
+        rationale_lookup: dict = None,  # NEW: id -> rationale_mask
+    ):
+        self.pairs            = pairs
+        self.tokenizer        = tokenizer
+        self.max_length       = max_length
+        self.rationale_lookup = rationale_lookup or {}
 
     def __len__(self):
         return len(self.pairs)
@@ -92,15 +144,40 @@ class ContrastiveHateDataset(Dataset):
         pair = self.pairs[idx]
         orig = self._encode(pair["original"]["text"])
         cf   = self._encode(pair["counterfactual"]["text"])
+
+        # Look up rationale mask for original
+        orig_id        = pair["original"].get("id", "")
+        word_rationale = self.rationale_lookup.get(orig_id, [])
+
+        orig_rat_mask = torch.zeros(self.max_length, dtype=torch.float)
+        if word_rationale:
+            encoding = self.tokenizer(
+                pair["original"]["text"],
+                truncation=True,
+                padding="max_length",
+                max_length=self.max_length,
+                return_tensors="pt",
+            )
+            try:
+                word_ids = encoding.word_ids(batch_index=0)
+                words    = pair["original"]["text"].split()
+                for token_idx, word_idx in enumerate(word_ids):
+                    if word_idx is None or token_idx >= self.max_length:
+                        continue
+                    if word_idx < len(word_rationale) and word_rationale[word_idx] == 1:
+                        orig_rat_mask[token_idx] = 1.0
+            except Exception:
+                pass
+
         return {
             "orig_input_ids":      orig["input_ids"],
             "orig_attention_mask": orig["attention_mask"],
-            "orig_label":          torch.tensor(pair["original"]["label_id"],       dtype=torch.long),
+            "orig_rationale_mask": orig_rat_mask,
+            "orig_label":          torch.tensor(pair["original"]["label_id"], dtype=torch.long),
             "cf_input_ids":        cf["input_ids"],
             "cf_attention_mask":   cf["attention_mask"],
             "cf_label":            torch.tensor(pair["counterfactual"]["label_id"], dtype=torch.long),
         }
-
 
 # ── 3. CF pair loader ─────────────────────────────────────────────────────────
 
