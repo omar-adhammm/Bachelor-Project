@@ -59,19 +59,19 @@ class ModelTrainer:
             print("Loading HateBERT Baseline...")
             self.models["baseline"] = HateBERTBaseline(num_labels=3).to(self.device)
             self.training_history["baseline"] = {"train_loss": [], "val_loss": [], "val_acc": []}
-            self.best_metrics["baseline"] = {"best_val_loss": float("inf"), "best_epoch": 0}
+            self.best_metrics["baseline"] = {"best_val_loss": float("inf"), "best_val_acc":0.0, "best_epoch": 0}
 
         if "proposed" in models_to_load:
             print("Loading ProposedModel (contrastive loss)...")
             self.models["proposed"] = ProposedModel(num_labels=3).to(self.device)
             self.training_history["proposed"] = {"train_loss": [], "val_loss": [], "val_acc": []}
-            self.best_metrics["proposed"] = {"best_val_loss": float("inf"), "best_epoch": 0}
+            self.best_metrics["proposed"] = {"best_val_loss": float("inf"), "best_val_acc":0.0, "best_epoch": 0}
 
         if "ablation" in models_to_load:
             print("Loading AblationCFOnlyModel (no contrastive)...")
             self.models["ablation"] = AblationCFOnlyModel(num_labels=3).to(self.device)
             self.training_history["ablation"] = {"train_loss": [], "val_loss": [], "val_acc": []}
-            self.best_metrics["ablation"] = {"best_val_loss": float("inf"), "best_epoch": 0}
+            self.best_metrics["ablation"] = {"best_val_loss": float("inf"), "best_val_acc":0.0, "best_epoch": 0}
 
         print("Models loaded.\n")
 
@@ -319,9 +319,15 @@ class ModelTrainer:
         models_to_train = [model_name] if model_name and model_name != "all" else ["baseline", "proposed", "ablation"]
         if num_epochs is None:
             num_epochs = config["models"]["hatebert"]["epochs"]
-        
+
+        # Early stopping settings
+        patience     = 2
+        no_improve   = {name: 0 for name in models_to_train}
+        should_stop  = {name: False for name in models_to_train}
+
         print(f"\n=== Training for {num_epochs} epochs ===\n")
-        # ✅ Build correct schedulers NOW that we know epochs and dataloaders
+
+        # Build schedulers
         for name in models_to_train:
             if name == "baseline":
                 steps_per_epoch = len(self.dataloaders["baseline_train"])
@@ -330,38 +336,50 @@ class ModelTrainer:
                     len(self.dataloaders["baseline_train"]),
                     len(self.dataloaders["cf_train"]),
                 )
-
             total_steps = steps_per_epoch * num_epochs
-
             self.schedulers[name] = get_linear_schedule_with_warmup(
                 self.optimizers[name],
                 num_warmup_steps=int(self.config["models"]["hatebert"]["warmup_steps"]),
                 num_training_steps=total_steps,
             )
-
             print(f"{name}: steps/epoch={steps_per_epoch}, total_steps={total_steps}")
-        
+
         for epoch in range(num_epochs):
+            # Check if all models have stopped
+            active = [n for n in models_to_train if not should_stop[n]]
+            if not active:
+                print("All models early stopped.")
+                break
+
             print(f"\n--- Epoch {epoch + 1}/{num_epochs} ---\n")
-        
-            for name in models_to_train:
+
+            for name in active:
                 if name == "baseline":
                     loss = self.train_baseline_epoch(epoch)
                 else:
                     loss = self.train_contrastive_epoch(epoch, name)
                 self.training_history[name]["train_loss"].append(loss)
-            
+
             print("\n--- Validation ---\n")
-            for name in models_to_train:
+            for name in active:
                 val_loss, val_acc = self.evaluate(name, "baseline_val")
                 self.training_history[name]["val_loss"].append(val_loss)
                 self.training_history[name]["val_acc"].append(val_acc)
                 print(f"  {name:12s}: val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
-                if val_loss < self.best_metrics[name]["best_val_loss"]:
+
+                if val_acc > self.best_metrics[name].get("best_val_acc", 0.0):
                     self.best_metrics[name]["best_val_loss"] = val_loss
-                    self.best_metrics[name]["best_epoch"] = epoch
+                    self.best_metrics[name]["best_val_acc"]  = val_acc
+                    self.best_metrics[name]["best_epoch"]    = epoch
                     self.save_checkpoint(name, epoch, val_loss, val_acc)
-        
+                    no_improve[name] = 0
+                else:
+                    no_improve[name] += 1
+                    print(f"    {name}: no improvement {no_improve[name]}/{patience}")
+                    if no_improve[name] >= patience:
+                        print(f"    Early stopping {name} at epoch {epoch+1}")
+                        should_stop[name] = True
+
         print("\n=== Training complete ===\n")
         self.print_summary()
 
@@ -410,6 +428,7 @@ class ModelTrainer:
             print(f"{model_name.upper()}")
             print(f"  Best epoch:        {best['best_epoch']}")
             print(f"  Best val loss:     {best['best_val_loss']:.4f}")
+            print(f"  Best val acc:      {best.get('best_val_acc', 0.0):.4f}")
             print(f"  Final train loss:  {hist['train_loss'][-1]:.4f}")
             print(f"  Final val loss:    {hist['val_loss'][-1]:.4f}")
             print(f"  Final val acc:     {hist['val_acc'][-1]:.4f}")

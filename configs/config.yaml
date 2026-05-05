@@ -34,17 +34,17 @@ models:
     name: "GroNLP/HateBERT"
     max_length: 128
     batch_size: 32
-    learning_rate: 2e-5
+    learning_rate: 5e-6
     epochs: 5
-    warmup_steps: 200
+    warmup_steps: 400
 
   proposed:
     name: "GroNLP/HateBERT"
     max_length: 128
     batch_size: 32
-    learning_rate: 2e-5
+    learning_rate: 5e-6
     epochs: 5
-    warmup_steps: 200
+    warmup_steps: 400
     contrastive_weight: 0.3
     contrastive_temperature: 0.07
 

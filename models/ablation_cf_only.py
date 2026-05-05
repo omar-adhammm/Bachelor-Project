@@ -87,6 +87,7 @@ class AblationCFOnlyModel(nn.Module):
         cf_input_ids:        torch.Tensor,
         cf_attention_mask:   torch.Tensor,
         cf_labels:           torch.Tensor,
+        orig_rationale_mask: torch.Tensor = None,
     ) -> dict:
         """
         Forward pass during CF pair training (ablation version).
