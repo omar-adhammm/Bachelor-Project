@@ -231,19 +231,33 @@ class ModelTrainer:
             self.optimizers[model_name].zero_grad()
             batch_loss = None
 
-            # Standard batch — CE loss
+            # Standard batch — CE loss + rationale supervision for proposed
             try:
                 std_batch      = next(standard_iter)
                 input_ids      = std_batch["input_ids"].to(self.device)
                 attention_mask = std_batch["attention_mask"].to(self.device)
                 labels         = std_batch["label"].to(self.device)
+                rationale_mask = std_batch.get("rationale_mask")
+                if rationale_mask is not None:
+                    rationale_mask = rationale_mask.to(self.device)
 
-                std_output = self.models[model_name](input_ids, attention_mask, labels)
+                # Proposed model gets rationale mask, ablation does not
+                if model_name == "proposed" and rationale_mask is not None:
+                    std_output = self.models[model_name](
+                        input_ids, attention_mask, labels,
+                        rationale_mask=rationale_mask,
+                    )
+                else:
+                    std_output = self.models[model_name](
+                        input_ids, attention_mask, labels,
+                    )
+
                 batch_loss = std_output["loss"]
+
             except StopIteration:
                 pass
 
-            # CF batch — contrastive loss with rationale masks
+            # CF batch — contrastive loss
             try:
                 cf_batch = next(cf_iter)
                 orig_input_ids      = cf_batch["orig_input_ids"].to(self.device)
@@ -252,9 +266,6 @@ class ModelTrainer:
                 cf_input_ids        = cf_batch["cf_input_ids"].to(self.device)
                 cf_attention_mask   = cf_batch["cf_attention_mask"].to(self.device)
                 cf_labels           = cf_batch["cf_label"].to(self.device)
-
-                # Get rationale masks from standard dataloader if available
-                # Match CF batch to standard batch by index for rationale lookup
                 orig_rationale_mask = cf_batch.get("orig_rationale_mask")
                 if orig_rationale_mask is not None:
                     orig_rationale_mask = orig_rationale_mask.to(self.device)

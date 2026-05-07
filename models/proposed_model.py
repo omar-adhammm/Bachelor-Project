@@ -31,11 +31,27 @@ class ProposedModel(nn.Module):
         model_name = config["models"]["proposed"]["name"]
 
         print(f"Loading HateBERT for proposed model: {model_name}")
-        self.model = AutoModelForSequenceClassification.from_pretrained(
+        base_model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
             num_labels=num_labels,
             ignore_mismatched_sizes=True,
+            attn_implementation="eager",
         )
+
+        # Apply LoRA
+        from peft import get_peft_model, LoraConfig, TaskType
+        lora_config = LoraConfig(
+            task_type=TaskType.SEQ_CLS,
+            r=config["lora"]["r"],
+            lora_alpha=config["lora"]["lora_alpha"],
+            lora_dropout=config["lora"]["lora_dropout"],
+            target_modules=config["lora"]["target_modules"],
+            bias="none",
+        )
+        self.model = get_peft_model(base_model, lora_config)
+        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.model.parameters())
+        print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
         self.num_labels = num_labels
 
     def forward(
@@ -43,36 +59,44 @@ class ProposedModel(nn.Module):
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
         labels:         torch.Tensor = None,
+        rationale_mask: torch.Tensor = None,
     ) -> dict:
         """
-        Standard forward pass (used during evaluation or when no CF data available).
-        
-        Args:
-            input_ids:      [batch_size, seq_len]
-            attention_mask: [batch_size, seq_len]
-            labels:         [batch_size] optional
-
-        Returns:
-            dict with keys: loss (optional), logits, embeddings
+        Forward pass with optional rationale supervision.
         """
-        outputs = self.model(
+        from training.contrastive_loss import RationaleSupervisionLoss
+
+        output = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             labels=labels,
-            output_hidden_states=True,
+            output_attentions=True,   # NEW — get attention weights
+            output_hidden_states=True,  # NEW — get hidden states for rationale loss
         )
 
-        # CLS token embedding from last hidden state
-        # Shape: [batch_size, hidden_size]
-        cls_embedding = outputs.hidden_states[-1][:, 0, :]
+        cls_embedding = output.hidden_states[-1][:, 0, :]
 
         result = {
-            "logits":     outputs.logits,
+            "loss":   output.loss,
+            "logits": output.logits,
             "embeddings": cls_embedding,
         }
 
-        if labels is not None:
-            result["loss"] = outputs.loss
+        # Add rationale supervision if mask provided
+        if rationale_mask is not None and labels is not None:
+            rat_weight = config["models"]["proposed"].get("rationale_weight", 0.2)
+
+            # Extract CLS token attention from last layer
+            # Shape: [batch, n_heads, seq_len, seq_len]
+            last_layer_attn = output.attentions[-1]
+            # Average across heads, take CLS token (position 0) attention
+            cls_attn = last_layer_attn[:, :, 0, :].mean(dim=1)  # [batch, seq_len]
+
+            rat_loss_fn = RationaleSupervisionLoss()
+            rat_loss    = rat_loss_fn(cls_attn, rationale_mask, labels)
+
+            result["loss"]         = result["loss"] + rat_weight * rat_loss
+            result["rationale_loss"] = rat_loss.item()
 
         return result
 
@@ -102,8 +126,17 @@ class ProposedModel(nn.Module):
             attention_mask=orig_attention_mask,
             output_hidden_states=True,
         )
-        orig_hidden = orig_outputs.hidden_states[-1]  # [B, seq, hidden]
-        orig_emb    = orig_hidden[:, 0, :]            # CLS for classification
+        # LoRA wraps the model — access hidden states safely
+        if hasattr(orig_outputs, 'hidden_states') and orig_outputs.hidden_states is not None:
+            orig_hidden = orig_outputs.hidden_states[-1]
+        else:
+            # Fallback: use a separate forward pass to get hidden states
+            orig_hidden = self.model.base_model(
+                input_ids=orig_input_ids,
+                attention_mask=orig_attention_mask,
+                output_hidden_states=True,
+            ).hidden_states[-1]
+        orig_emb    = orig_hidden[:, 0, :]
         orig_logits = orig_outputs.logits
 
         # Process counterfactuals
@@ -112,7 +145,14 @@ class ProposedModel(nn.Module):
             attention_mask=cf_attention_mask,
             output_hidden_states=True,
         )
-        cf_hidden = cf_outputs.hidden_states[-1]
+        if hasattr(cf_outputs, 'hidden_states') and cf_outputs.hidden_states is not None:
+            cf_hidden = cf_outputs.hidden_states[-1]
+        else:
+            cf_hidden = self.model.base_model(
+                input_ids=cf_input_ids,
+                attention_mask=cf_attention_mask,
+                output_hidden_states=True,
+            ).hidden_states[-1]
         cf_emb    = cf_hidden[:, 0, :]
         cf_logits = cf_outputs.logits
 
@@ -259,10 +299,12 @@ if __name__ == "__main__":
     print(f"  Total loss:      {pair_output['loss'].item():.4f}")
     print(f"  Loss breakdown:")
     for key, val in pair_output["loss_breakdown"].items():
-        if key != "lambda":
-            print(f"    {key:15s}: {val:.4f}")
-        else:
+        if isinstance(val, str):
+            print(f"    {key:15s}: {val}")
+        elif key == "lambda":
             print(f"    {key:15s}: {val:.2f}")
+        else:
+            print(f"    {key:15s}: {val:.4f}")
 
     print("\n── Embedding distances ──")
     orig_emb = pair_output["orig_embeddings"]

@@ -34,11 +34,27 @@ class AblationCFOnlyModel(nn.Module):
         model_name = config["models"]["hatebert"]["name"]
 
         print(f"Loading HateBERT for ablation (CF-only): {model_name}")
-        self.model = AutoModelForSequenceClassification.from_pretrained(
+        base_model = AutoModelForSequenceClassification.from_pretrained(
             model_name,
             num_labels=num_labels,
             ignore_mismatched_sizes=True,
+            attn_implementation="eager",
         )
+
+        # Apply LoRA
+        from peft import get_peft_model, LoraConfig, TaskType
+        lora_config = LoraConfig(
+            task_type=TaskType.SEQ_CLS,
+            r=config["lora"]["r"],
+            lora_alpha=config["lora"]["lora_alpha"],
+            lora_dropout=config["lora"]["lora_dropout"],
+            target_modules=config["lora"]["target_modules"],
+            bias="none",
+        )
+        self.model = get_peft_model(base_model, lora_config)
+        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.model.parameters())
+        print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
         self.num_labels = num_labels
 
     def forward(
@@ -46,6 +62,7 @@ class AblationCFOnlyModel(nn.Module):
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
         labels:         torch.Tensor = None,
+        rationale_mask: torch.Tensor = None,
     ) -> dict:
         """
         Standard forward pass.

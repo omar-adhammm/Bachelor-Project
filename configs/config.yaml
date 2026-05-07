@@ -31,22 +31,31 @@ counterfactual:
 
 models:
   hatebert:
-    name: "GroNLP/HateBERT"
+    name: "vinai/bertweet-base"
     max_length: 128
     batch_size: 32
-    learning_rate: 5e-6
-    epochs: 5
+    learning_rate: 1e-5
+    epochs: 10
     warmup_steps: 400
 
   proposed:
-    name: "GroNLP/HateBERT"
+    name: "vinai/bertweet-base"
     max_length: 128
     batch_size: 32
-    learning_rate: 5e-6
-    epochs: 5
+    learning_rate: 1e-5
+    epochs: 10
     warmup_steps: 400
     contrastive_weight: 0.3
     contrastive_temperature: 0.07
+    rationale_weight: 0.2
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.1
+  target_modules:
+    - "query"
+    - "value"
 
 api:
   groq_model: "llama-3.3-70b-versatile"

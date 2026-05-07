@@ -250,6 +250,61 @@ class CombinedLoss(nn.Module):
             "contrastive": cont.item(),
             "lambda":      self.lambda_weight,
         }
+    
+class RationaleSupervisionLoss(nn.Module):
+    """
+    Rationale Supervision Loss.
+
+    Encourages the model's attention weights to align with
+    human-annotated rationale spans from HateXplain.
+
+    For each example with a rationale mask, computes cross-entropy
+    between the model's CLS attention weights and the binary
+    rationale mask. This directly uses HateXplain's unique
+    token-level human annotations.
+
+    Only applied to harmful examples (offensive + hatespeech)
+    since normal examples have no rationale annotations.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(
+        self,
+        attention_weights: torch.Tensor,  # [batch, seq_len] — CLS attention from last layer
+        rationale_mask:    torch.Tensor,  # [batch, seq_len] — binary human rationale mask
+        labels:            torch.Tensor,  # [batch] — class labels
+    ) -> torch.Tensor:
+        device = attention_weights.device
+
+        # Only compute loss on harmful examples that have rationale annotations
+        harmful_mask = (labels > 0)  # offensive=1, hatespeech=2
+        has_rationale = (rationale_mask.sum(dim=1) > 0)
+        valid = harmful_mask & has_rationale
+
+        if not valid.any():
+            return torch.tensor(0.0, device=device, requires_grad=True)
+
+        # Get valid examples
+        attn   = attention_weights[valid]   # [n_valid, seq_len]
+        target = rationale_mask[valid]      # [n_valid, seq_len]
+
+        # Normalize attention to probability distribution
+        attn_prob = attn / (attn.sum(dim=1, keepdim=True) + 1e-9)
+
+        # Normalize target rationale mask to probability distribution
+        target_prob = target / (target.sum(dim=1, keepdim=True) + 1e-9)
+
+        # KL divergence: how different is model attention from human rationale
+        # KL(target || attn) = sum(target * log(target / attn))
+        log_attn   = torch.log(attn_prob   + 1e-9)
+        log_target = torch.log(target_prob + 1e-9)
+
+        kl_loss = (target_prob * (log_target - log_attn)).sum(dim=1)
+        kl_loss = torch.nan_to_num(kl_loss, nan=0.0, posinf=0.0, neginf=0.0)
+
+        return kl_loss.mean()
 
 
 # ── Smoke test ────────────────────────────────────────────────────────────────
