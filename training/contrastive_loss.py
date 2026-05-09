@@ -223,7 +223,6 @@ class CombinedLoss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.ce_loss          = nn.CrossEntropyLoss()
         self.contrastive_loss = SupervisedContrastiveLoss()
         self.lambda_weight    = config["models"]["proposed"]["contrastive_weight"]
 
@@ -237,7 +236,8 @@ class CombinedLoss(nn.Module):
         cf_labels:       torch.Tensor,
     ) -> tuple[torch.Tensor, dict]:
 
-        ce   = self.ce_loss(logits, labels)
+        weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
+        ce      = nn.CrossEntropyLoss(weight=weights)(logits, labels)
         cont = self.contrastive_loss(
             orig_embeddings, cf_embeddings,
             orig_labels, cf_labels

@@ -69,7 +69,6 @@ class ProposedModel(nn.Module):
         output = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            labels=labels,
             output_attentions=True,   # NEW — get attention weights
             output_hidden_states=True,  # NEW — get hidden states for rationale loss
         )
@@ -77,10 +76,15 @@ class ProposedModel(nn.Module):
         cls_embedding = output.hidden_states[-1][:, 0, :]
 
         result = {
-            "loss":   output.loss,
             "logits": output.logits,
             "embeddings": cls_embedding,
         }
+
+        if labels is not None:
+            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
+            result["loss"] = nn.CrossEntropyLoss(weight=weights)(output.logits, labels)
+        else:
+            result["loss"] = None
 
         # Add rationale supervision if mask provided
         if rationale_mask is not None and labels is not None:
@@ -157,7 +161,7 @@ class ProposedModel(nn.Module):
         cf_logits = cf_outputs.logits
 
         # CE loss on originals
-        ce_loss = nn.CrossEntropyLoss()(orig_logits, orig_labels)
+        ce_loss = nn.CrossEntropyLoss(weight=torch.tensor([0.827, 1.164, 1.072], device=orig_labels.device))(orig_logits, orig_labels)
 
         # Choose contrastive loss
         if orig_rationale_mask is not None:

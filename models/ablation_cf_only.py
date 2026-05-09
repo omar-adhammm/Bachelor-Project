@@ -78,7 +78,6 @@ class AblationCFOnlyModel(nn.Module):
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            labels=labels,
             output_hidden_states=True,
         )
 
@@ -92,7 +91,8 @@ class AblationCFOnlyModel(nn.Module):
         }
 
         if labels is not None:
-            result["loss"] = outputs.loss
+            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
+            result["loss"] = nn.CrossEntropyLoss(weight=weights)(outputs.logits, labels)
 
         return result
 
@@ -145,7 +145,8 @@ class AblationCFOnlyModel(nn.Module):
         cf_logits     = cf_outputs.logits
 
         # ABLATION: Only compute CE loss on originals, no contrastive component
-        ce_loss = nn.CrossEntropyLoss()(orig_logits, orig_labels)
+        weights = torch.tensor([0.827, 1.164, 1.072], device=orig_labels.device)
+        ce_loss = nn.CrossEntropyLoss(weight=weights)(orig_logits, orig_labels)
 
         return {
             "loss": ce_loss,

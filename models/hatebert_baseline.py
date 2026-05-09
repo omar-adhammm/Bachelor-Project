@@ -65,7 +65,6 @@ class HateBERTBaseline(nn.Module):
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
-            labels=labels,
             output_hidden_states=True,
         )
 
@@ -79,7 +78,8 @@ class HateBERTBaseline(nn.Module):
         }
 
         if labels is not None:
-            result["loss"] = outputs.loss
+            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
+            result["loss"] = nn.CrossEntropyLoss(weight=weights)(outputs.logits, labels)
 
         return result
 
