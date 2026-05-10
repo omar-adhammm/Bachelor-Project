@@ -28,7 +28,7 @@ class AblationCFOnlyModel(nn.Module):
         print(f"Loading HateBERT for ablation (CF-only): {model_name}")
         base_model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            dtype=torch.float16,
+            torch_dtype=torch.bfloat16,
             attn_implementation="eager",
         )
 
@@ -43,7 +43,7 @@ class AblationCFOnlyModel(nn.Module):
         self.model = get_peft_model(base_model, lora_config)
 
         hidden_size      = self.model.config.hidden_size
-        self.classifier  = nn.Linear(hidden_size, num_labels)
+        self.classifier  = nn.Linear(hidden_size, num_labels).float()
         self.num_labels  = num_labels
 
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)

@@ -19,7 +19,7 @@ models:
     name: "microsoft/Phi-3.5-mini-instruct"
     max_length: 128
     batch_size: 16
-    learning_rate: 5e-5
+    learning_rate: 1e-5
     epochs: 20
     warmup_steps: 200
 
@@ -27,7 +27,7 @@ models:
     name: "microsoft/Phi-3.5-mini-instruct"
     max_length: 128
     batch_size: 16
-    learning_rate: 5e-5
+    learning_rate: 1e-5
     epochs: 20
     warmup_steps: 200
     contrastive_weight: 0.3
