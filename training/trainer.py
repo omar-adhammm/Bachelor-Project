@@ -332,7 +332,7 @@ class ModelTrainer:
             num_epochs = config["models"]["hatebert"]["epochs"]
 
         # Early stopping settings
-        patience     = 8
+        patience     = 10
         no_improve   = {name: 0 for name in models_to_train}
         should_stop  = {name: False for name in models_to_train}
 
