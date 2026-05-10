@@ -6,17 +6,24 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import get_peft_model, LoraConfig, TaskType
 from configs.config_loader import load_config
 
 config = load_config()
 
+# Class weights for weighted CE loss
+# Computed as: total / (n_classes * class_count)
+# normal=6494, offensive=4613, hate=5011, total=16118
+CLASS_WEIGHTS = torch.tensor([0.827, 1.164, 1.072])
+
 
 class HateBERTBaseline(nn.Module):
     """
-    Model A — HateBERT fine-tuned on HateXplain only.
+    Model A — Phi-3.5-mini with LoRA fine-tuning on HateXplain.
+    Uses generative classification: extracts last token hidden state
+    and passes through a classification head.
     No counterfactual data, no contrastive loss.
-    This is the baseline everything else is compared against.
     """
 
     def __init__(self, num_labels: int = 3):
@@ -24,43 +31,42 @@ class HateBERTBaseline(nn.Module):
         model_name = config["models"]["hatebert"]["name"]
 
         print(f"Loading HateBERT: {model_name}")
-        base_model = AutoModelForSequenceClassification.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            num_labels=num_labels,
-            ignore_mismatched_sizes=True,
+            dtype=torch.float16,
             attn_implementation="eager",
         )
 
         # Apply LoRA
-        from peft import get_peft_model, LoraConfig, TaskType
         lora_config = LoraConfig(
-            task_type=TaskType.SEQ_CLS,
             r=config["lora"]["r"],
             lora_alpha=config["lora"]["lora_alpha"],
             lora_dropout=config["lora"]["lora_dropout"],
             target_modules=config["lora"]["target_modules"],
             bias="none",
+            task_type=TaskType.CAUSAL_LM,
         )
         self.model = get_peft_model(base_model, lora_config)
-        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        total     = sum(p.numel() for p in self.model.parameters())
+
+        # Classification head on top of last token hidden state
+        hidden_size = self.model.config.hidden_size
+        self.classifier = nn.Linear(hidden_size, num_labels)
+        self.num_labels  = num_labels
+
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.parameters())
         print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
-        self.num_labels = num_labels
 
     def forward(
         self,
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
         labels:         torch.Tensor = None,
+        rationale_mask: torch.Tensor = None,
     ) -> dict:
         """
-        Args:
-            input_ids:      [batch_size, seq_len]
-            attention_mask: [batch_size, seq_len]
-            labels:         [batch_size] optional — if provided, loss is computed
-
-        Returns:
-            dict with keys: loss (optional), logits, embeddings
+        Forward pass. Extracts last token hidden state for classification.
+        rationale_mask accepted but ignored in baseline.
         """
         outputs = self.model(
             input_ids=input_ids,
@@ -68,18 +74,28 @@ class HateBERTBaseline(nn.Module):
             output_hidden_states=True,
         )
 
-        # CLS token embedding from last hidden state
-        # Shape: [batch_size, hidden_size]
-        cls_embedding = outputs.hidden_states[-1][:, 0, :]
+        # Last token hidden state — for decoder models this is the prediction position
+        hidden_states = outputs.hidden_states[-1]  # [batch, seq_len, hidden]
+
+        # Find last non-padding token for each example
+        seq_lengths   = attention_mask.sum(dim=1) - 1  # [batch]
+        last_hidden   = hidden_states[
+            torch.arange(hidden_states.size(0), device=hidden_states.device),
+            seq_lengths,
+        ]  # [batch, hidden]
+
+        logits    = self.classifier(last_hidden.float())  # [batch, num_labels]
+        embedding = last_hidden.float()
 
         result = {
-            "logits":     outputs.logits,
-            "embeddings": cls_embedding,
+            "logits":     logits,
+            "embeddings": embedding,
         }
 
         if labels is not None:
-            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
-            result["loss"] = nn.CrossEntropyLoss(weight=weights)(outputs.logits, labels)
+            weights = CLASS_WEIGHTS.to(labels.device)
+            loss_fn = nn.CrossEntropyLoss(weight=weights)
+            result["loss"] = loss_fn(logits, labels)
 
         return result
 
@@ -88,46 +104,47 @@ class HateBERTBaseline(nn.Module):
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
-        """Extract CLS embeddings without computing loss."""
         with torch.no_grad():
             outputs = self.model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 output_hidden_states=True,
             )
-        return outputs.hidden_states[-1][:, 0, :]
+        hidden_states = outputs.hidden_states[-1]
+        seq_lengths   = attention_mask.sum(dim=1) - 1
+        return hidden_states[
+            torch.arange(hidden_states.size(0), device=hidden_states.device),
+            seq_lengths,
+        ].float()
 
 
 def get_tokenizer():
-    """Return the HateBERT tokenizer."""
-    return AutoTokenizer.from_pretrained(config["models"]["hatebert"]["name"])
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["models"]["hatebert"]["name"],
+        trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"  # decoder models need left padding
+    return tokenizer
 
-
-# ── Smoke test ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("=== HateBERT Baseline Smoke Test ===\n")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}\n")
-
-    # Load model and tokenizer
     tokenizer = get_tokenizer()
     model     = HateBERTBaseline(num_labels=3).to(device)
 
-    # Sample texts
-    texts = [
+    texts  = [
         "I hate all immigrants they should be deported.",
         "That movie was absolutely terrible.",
         "I enjoyed spending time with my friends today.",
     ]
-    labels = torch.tensor([2, 1, 0]).to(device)  # hate, offensive, normal
+    labels = torch.tensor([2, 1, 0]).to(device)
 
-    # Tokenize
     encoding = tokenizer(
-        texts,
-        padding=True,
-        truncation=True,
+        texts, padding=True, truncation=True,
         max_length=config["models"]["hatebert"]["max_length"],
         return_tensors="pt",
     )
@@ -140,26 +157,9 @@ if __name__ == "__main__":
     print(f"  Logits shape:    {output['logits'].shape}")
     print(f"  Embeddings shape:{output['embeddings'].shape}")
 
-    print("\n── Predictions ──")
-    probs = torch.softmax(output["logits"], dim=1)
-    preds = torch.argmax(probs, dim=1)
-    label_names = config["labels"]["id2label"]
-    for i, text in enumerate(texts):
-        print(f"  Text:      {text[:50]}...")
-        print(f"  Predicted: {label_names[preds[i].item()]} "
-            f"(confidence: {probs[i].max().item():.2%})")
-        print(f"  True:      {label_names[labels[i].item()]}")
-        print()
-
-    print("── Embedding extraction ──")
-    embeddings = model.get_embeddings(input_ids, attention_mask)
-    print(f"  Embeddings shape: {embeddings.shape}")
-    print(f"  Embedding norm:   {embeddings.norm(dim=1).mean().item():.4f}")
-
-    print("── Parameter count ──")
     total     = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Total params:     {total:,}")
-    print(f"  Trainable params: {trainable:,}")
-
+    print(f"\n── Parameter count ──")
+    print(f"  Total:     {total:,}")
+    print(f"  Trainable: {trainable:,}")
     print("\nHateBERT baseline smoke test passed!")

@@ -14,7 +14,7 @@ config = load_config()
 
 def load_split(split: str) -> list[dict]:
     """Load train / validation / test from data/raw/"""
-    path = f"{config['paths']['raw_data']}/{split}.json"
+    path = f"{config['paths']['data']}/{split}.json"
     with open(path) as f:
         data = json.load(f)
     print(f"Loaded {len(data)} examples from {path}")
@@ -243,7 +243,10 @@ if __name__ == "__main__":
 
     model_name = config["models"]["hatebert"]["name"]
     print(f"\nLoading tokenizer: {model_name}")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
 
     print("\n── Standard DataLoaders ──")
     loaders = get_dataloaders(

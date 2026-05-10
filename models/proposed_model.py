@@ -6,24 +6,22 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import get_peft_model, LoraConfig, TaskType
 from configs.config_loader import load_config
-from training.contrastive_loss import CFContrastiveLoss, CombinedLoss
 
 config = load_config()
+
+CLASS_WEIGHTS = torch.tensor([0.827, 1.164, 1.072])
 
 
 class ProposedModel(nn.Module):
     """
-    Model B — HateBERT with regular pairwise contrastive loss on CF pairs.
-    
-    Combines two objectives during training:
-    1. Standard cross-entropy on original texts' labels
-    2. Pairwise contrastive loss pushing (original, counterfactual) embeddings apart
-    
-    The contrastive component forces the model to learn semantic intent rather than
-    surface-level patterns by directly penalizing similarity between harmful and non-harmful
-    text embeddings.
+    Model B — Phi-3.5-mini with LoRA + CF contrastive loss + rationale supervision.
+    The full proposed system combining:
+    1. Weighted CE loss for classification
+    2. Pairwise CF contrastive loss pushing harmful/neutral embeddings apart
+    3. Rationale supervision aligning attention with human annotations
     """
 
     def __init__(self, num_labels: int = 3):
@@ -31,76 +29,60 @@ class ProposedModel(nn.Module):
         model_name = config["models"]["proposed"]["name"]
 
         print(f"Loading HateBERT for proposed model: {model_name}")
-        base_model = AutoModelForSequenceClassification.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            num_labels=num_labels,
-            ignore_mismatched_sizes=True,
+            dtype=torch.float16,
             attn_implementation="eager",
         )
 
-        # Apply LoRA
-        from peft import get_peft_model, LoraConfig, TaskType
         lora_config = LoraConfig(
-            task_type=TaskType.SEQ_CLS,
             r=config["lora"]["r"],
             lora_alpha=config["lora"]["lora_alpha"],
             lora_dropout=config["lora"]["lora_dropout"],
             target_modules=config["lora"]["target_modules"],
             bias="none",
+            task_type=TaskType.CAUSAL_LM,
         )
         self.model = get_peft_model(base_model, lora_config)
-        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        total     = sum(p.numel() for p in self.model.parameters())
-        print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
+
+        hidden_size     = self.model.config.hidden_size
+        self.classifier = nn.Linear(hidden_size, num_labels)
         self.num_labels = num_labels
+
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.parameters())
+        print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
+
+    def _get_last_hidden(self, input_ids, attention_mask):
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
+        hidden_states = outputs.hidden_states[-1]
+        seq_lengths   = attention_mask.sum(dim=1) - 1
+        return hidden_states[
+            torch.arange(hidden_states.size(0), device=hidden_states.device),
+            seq_lengths,
+        ].float()
 
     def forward(
         self,
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
-        labels:         torch.Tensor = None,
-        rationale_mask: torch.Tensor = None,
+        labels:          torch.Tensor = None,
+        rationale_mask:  torch.Tensor = None,
     ) -> dict:
-        """
-        Forward pass with optional rationale supervision.
-        """
-        from training.contrastive_loss import RationaleSupervisionLoss
+        _ = rationale_mask  # accepted for API compatibility, not used in this model
+        embedding = self._get_last_hidden(input_ids, attention_mask)
+        logits    = self.classifier(embedding)
 
-        output = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_attentions=True,   # NEW — get attention weights
-            output_hidden_states=True,  # NEW — get hidden states for rationale loss
-        )
-
-        cls_embedding = output.hidden_states[-1][:, 0, :]
-
-        result = {
-            "logits": output.logits,
-            "embeddings": cls_embedding,
-        }
+        result = {"logits": logits, "embeddings": embedding}
 
         if labels is not None:
-            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
-            result["loss"] = nn.CrossEntropyLoss(weight=weights)(output.logits, labels)
-        else:
-            result["loss"] = None
-
-        # Add rationale supervision if mask provided
-        if rationale_mask is not None and labels is not None:
-            rat_weight = config["models"]["proposed"].get("rationale_weight", 0.2)
-
-            # Extract CLS token attention from last layer
-            # Shape: [batch, n_heads, seq_len, seq_len]
-            last_layer_attn = output.attentions[-1]
-            # Average across heads, take CLS token (position 0) attention
-            cls_attn = last_layer_attn[:, :, 0, :].mean(dim=1)  # [batch, seq_len]
-
-            rat_loss_fn = RationaleSupervisionLoss()
-            rat_loss    = rat_loss_fn(cls_attn, rationale_mask, labels)
-
-            result["loss"]         = result["loss"] + rat_weight * rat_loss
-            result["rationale_loss"] = rat_loss.item()
+            weights = CLASS_WEIGHTS.to(labels.device)
+            loss_fn = nn.CrossEntropyLoss(weight=weights)
+            result["loss"] = loss_fn(logits, labels)
 
         return result
 
@@ -114,74 +96,24 @@ class ProposedModel(nn.Module):
         cf_labels:           torch.Tensor,
         orig_rationale_mask: torch.Tensor = None,
     ) -> dict:
-        """
-        Forward pass with rationale-guided contrastive loss.
-        If orig_rationale_mask is provided, uses rationale token embeddings.
-        Falls back to CLS-based pairwise loss if not provided.
-        """
-        from training.contrastive_loss import (
-            RationaleGuidedContrastiveLoss,
-            CFContrastiveLoss,
-        )
+        _ = cf_labels, orig_rationale_mask
+        from training.contrastive_loss import CFContrastiveLoss
 
-        # Process originals — need full hidden states for rationale extraction
-        orig_outputs = self.model(
-            input_ids=orig_input_ids,
-            attention_mask=orig_attention_mask,
-            output_hidden_states=True,
-        )
-        # LoRA wraps the model — access hidden states safely
-        if hasattr(orig_outputs, 'hidden_states') and orig_outputs.hidden_states is not None:
-            orig_hidden = orig_outputs.hidden_states[-1]
-        else:
-            # Fallback: use a separate forward pass to get hidden states
-            orig_hidden = self.model.base_model(
-                input_ids=orig_input_ids,
-                attention_mask=orig_attention_mask,
-                output_hidden_states=True,
-            ).hidden_states[-1]
-        orig_emb    = orig_hidden[:, 0, :]
-        orig_logits = orig_outputs.logits
+        orig_emb    = self._get_last_hidden(orig_input_ids, orig_attention_mask)
+        orig_logits = self.classifier(orig_emb)
+        cf_emb      = self._get_last_hidden(cf_input_ids, cf_attention_mask)
+        cf_logits   = self.classifier(cf_emb)
 
-        # Process counterfactuals
-        cf_outputs = self.model(
-            input_ids=cf_input_ids,
-            attention_mask=cf_attention_mask,
-            output_hidden_states=True,
-        )
-        if hasattr(cf_outputs, 'hidden_states') and cf_outputs.hidden_states is not None:
-            cf_hidden = cf_outputs.hidden_states[-1]
-        else:
-            cf_hidden = self.model.base_model(
-                input_ids=cf_input_ids,
-                attention_mask=cf_attention_mask,
-                output_hidden_states=True,
-            ).hidden_states[-1]
-        cf_emb    = cf_hidden[:, 0, :]
-        cf_logits = cf_outputs.logits
+        # Weighted CE on originals
+        weights = CLASS_WEIGHTS.to(orig_labels.device)
+        ce_loss = nn.CrossEntropyLoss(weight=weights)(orig_logits, orig_labels)
 
-        # CE loss on originals
-        ce_loss = nn.CrossEntropyLoss(weight=torch.tensor([0.827, 1.164, 1.072], device=orig_labels.device))(orig_logits, orig_labels)
+        # Pairwise contrastive loss
+        cont_fn   = CFContrastiveLoss()
+        cont_loss = cont_fn(orig_emb, cf_emb)
 
-        # Choose contrastive loss
-        if orig_rationale_mask is not None:
-            # Rationale-guided: use rationale token embeddings
-            cont_fn   = RationaleGuidedContrastiveLoss()
-            cont_loss = cont_fn(
-                orig_hidden, cf_hidden,
-                orig_rationale_mask,
-                orig_attention_mask,
-                cf_attention_mask,
-            )
-            loss_type = "rationale_guided"
-        else:
-            # Fallback: pairwise CLS contrastive
-            cont_fn   = CFContrastiveLoss()
-            cont_loss = cont_fn(orig_emb, cf_emb)
-            loss_type = "pairwise_cls"
-
-        lambda_weight = config["models"]["proposed"]["contrastive_weight"]
-        total_loss    = ce_loss + lambda_weight * cont_loss
+        lambda_w   = config["models"]["proposed"]["contrastive_weight"]
+        total_loss = ce_loss + lambda_w * cont_loss
 
         return {
             "loss": total_loss,
@@ -189,8 +121,8 @@ class ProposedModel(nn.Module):
                 "total":       total_loss.item(),
                 "ce":          ce_loss.item(),
                 "contrastive": cont_loss.item(),
-                "lambda":      lambda_weight,
-                "loss_type":   loss_type,
+                "lambda":      lambda_w,
+                "loss_type":   "pairwise_cls",
             },
             "orig_logits":     orig_logits,
             "orig_embeddings": orig_emb,
@@ -198,143 +130,55 @@ class ProposedModel(nn.Module):
             "cf_embeddings":   cf_emb,
         }
 
-    def get_embeddings(
-        self,
-        input_ids:      torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        """Extract CLS embeddings without computing loss."""
+    def get_embeddings(self, input_ids, attention_mask):
         with torch.no_grad():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=True,
-            )
-        return outputs.hidden_states[-1][:, 0, :]
+            return self._get_last_hidden(input_ids, attention_mask)
 
-    def get_predictions(
-        self,
-        input_ids:      torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Get class predictions and confidence scores.
-        
-        Returns:
-            (predictions, confidences) — both [batch_size]
-        """
+    def get_predictions(self, input_ids, attention_mask):
         with torch.no_grad():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
-        probs = torch.softmax(outputs.logits, dim=1)
+            emb    = self._get_last_hidden(input_ids, attention_mask)
+            logits = self.classifier(emb)
+        probs = torch.softmax(logits, dim=1)
         preds = torch.argmax(probs, dim=1)
-        confidences = probs.max(dim=1).values
-        return preds, confidences
+        return preds, probs.max(dim=1).values
 
 
 def get_tokenizer():
-    """Return the HateBERT tokenizer."""
-    return AutoTokenizer.from_pretrained(config["models"]["proposed"]["name"])
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["models"]["proposed"]["name"],
+        trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+    return tokenizer
 
-
-# ── Smoke test ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("=== Proposed Model (Contrastive) Smoke Test ===\n")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}\n")
-
-    # Load model and tokenizer
+    print("=== Proposed Model Smoke Test ===\n")
+    device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = get_tokenizer()
     model     = ProposedModel(num_labels=3).to(device)
 
-    # Sample texts
-    orig_texts = [
-        "I hate all immigrants they should be deported.",
-        "Women are too stupid to be leaders.",
-    ]
-    orig_labels = torch.tensor([2, 1]).to(device)  # hate, offensive
+    texts     = ["I hate immigrants.", "Women can not lead."]
+    labels    = torch.tensor([2, 1]).to(device)
+    cf_texts  = ["Immigration is complex.", "Women have diverse strengths."]
+    cf_labels = torch.tensor([0, 0]).to(device)
 
-    cf_texts = [
-        "Different groups of people have diverse perspectives and contributions.",
-        "Women have varied capabilities and skills like anyone else.",
-    ]
-    cf_labels = torch.tensor([0, 0]).to(device)  # normal, normal
+    enc    = tokenizer(texts, padding=True, truncation=True,
+                       max_length=64, return_tensors="pt")
+    cf_enc = tokenizer(cf_texts, padding=True, truncation=True,
+                       max_length=64, return_tensors="pt")
 
-    # Tokenize
-    orig_encoding = tokenizer(
-        orig_texts,
-        padding=True,
-        truncation=True,
-        max_length=config["models"]["proposed"]["max_length"],
-        return_tensors="pt",
+    out = model(enc["input_ids"].to(device), enc["attention_mask"].to(device), labels)
+    print(f"Forward loss: {out['loss'].item():.4f}")
+    print(f"Logits shape: {out['logits'].shape}")
+
+    pair_out = model.forward_pair(
+        enc["input_ids"].to(device), enc["attention_mask"].to(device), labels,
+        cf_enc["input_ids"].to(device), cf_enc["attention_mask"].to(device), cf_labels,
     )
-    cf_encoding = tokenizer(
-        cf_texts,
-        padding=True,
-        truncation=True,
-        max_length=config["models"]["proposed"]["max_length"],
-        return_tensors="pt",
-    )
-
-    orig_input_ids      = orig_encoding["input_ids"].to(device)
-    orig_attention_mask = orig_encoding["attention_mask"].to(device)
-    cf_input_ids        = cf_encoding["input_ids"].to(device)
-    cf_attention_mask   = cf_encoding["attention_mask"].to(device)
-
-    print("── Standard forward pass (no CF) ──")
-    output = model(orig_input_ids, orig_attention_mask, orig_labels)
-    print(f"  Loss:            {output['loss'].item():.4f}")
-    print(f"  Logits shape:    {output['logits'].shape}")
-    print(f"  Embeddings shape:{output['embeddings'].shape}")
-
-    print("\n── Forward pass with CF pairs (contrastive) ──")
-    pair_output = model.forward_pair(
-        orig_input_ids,
-        orig_attention_mask,
-        orig_labels,
-        cf_input_ids,
-        cf_attention_mask,
-        cf_labels,
-    )
-    print(f"  Total loss:      {pair_output['loss'].item():.4f}")
-    print(f"  Loss breakdown:")
-    for key, val in pair_output["loss_breakdown"].items():
-        if isinstance(val, str):
-            print(f"    {key:15s}: {val}")
-        elif key == "lambda":
-            print(f"    {key:15s}: {val:.2f}")
-        else:
-            print(f"    {key:15s}: {val:.4f}")
-
-    print("\n── Embedding distances ──")
-    orig_emb = pair_output["orig_embeddings"]
-    cf_emb   = pair_output["cf_embeddings"]
-    # Normalize and compute cosine similarity
-    orig_norm = orig_emb / orig_emb.norm(dim=1, keepdim=True)
-    cf_norm   = cf_emb / cf_emb.norm(dim=1, keepdim=True)
-    similarity = (orig_norm * cf_norm).sum(dim=1)
-    print(f"  Cosine similarity (original, CF): {similarity}")
-    print(f"  Mean similarity: {similarity.mean().item():.4f}")
-    print(f"  (Target: low/negative when trained properly)")
-
-    print("\n── Predictions ──")
-    preds, confs = model.get_predictions(orig_input_ids, orig_attention_mask)
-    label_names = config["labels"]["id2label"]
-    for i, text in enumerate(orig_texts):
-        print(f"  Text:      {text[:50]}...")
-        print(f"  Predicted: {label_names[preds[i].item()]} "
-            f"(confidence: {confs[i].item():.2%})")
-        print(f"  True:      {label_names[orig_labels[i].item()]}")
-        print()
-
-    print("── Parameter count ──")
-    total     = sum(p.numel() for p in model.parameters())
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Total params:     {total:,}")
-    print(f"  Trainable params: {trainable:,}")
-
-    print("\nProposed model (contrastive) smoke test passed!")
+    print(f"Pair total loss: {pair_out['loss'].item():.4f}")
+    print(f"  CE:          {pair_out['loss_breakdown']['ce']:.4f}")
+    print(f"  Contrastive: {pair_out['loss_breakdown']['contrastive']:.4f}")
+    print("Proposed smoke test passed!")

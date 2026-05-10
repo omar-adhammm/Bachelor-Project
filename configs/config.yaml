@@ -1,50 +1,35 @@
-project:
-  name: "LLM-CF-HarmfulText"
-  seed: 42
-
 paths:
-  raw_data: "data/raw"
-  processed_data: "data/processed"
-  augmented_data: "data/augmented"
+  data: "data/raw"
   cf_pairs: "outputs/cf_pairs"
   checkpoints: "outputs/model_checkpoints"
   results: "outputs/results"
 
 labels:
-  names: ["normal", "offensive", "hatespeech"]
-  harmful: ["offensive", "hatespeech"]
-  label2id:
-    normal: 0
-    offensive: 1
-    hatespeech: 2
   id2label:
     0: "normal"
     1: "offensive"
     2: "hatespeech"
-
-counterfactual:
-  target_label: "normal"        # CFs flip harmful → normal
-  max_retries: 3
-  acceptance_threshold: 0.50    # below this → activate few-shot seed pool
-  batch_size: 10                # examples per API call session
-  strategy: "zero_shot"         # zero_shot or few_shot
+  label2id:
+    normal: 0
+    offensive: 1
+    hatespeech: 2
 
 models:
   hatebert:
-    name: "vinai/bertweet-base"
+    name: "microsoft/Phi-3.5-mini-instruct"
     max_length: 128
-    batch_size: 32
-    learning_rate: 2e-5
-    epochs: 35
-    warmup_steps: 400
+    batch_size: 16
+    learning_rate: 2e-4
+    epochs: 20
+    warmup_steps: 200
 
   proposed:
-    name: "vinai/bertweet-base"
+    name: "microsoft/Phi-3.5-mini-instruct"
     max_length: 128
-    batch_size: 32
-    learning_rate: 2e-5
-    epochs: 35
-    warmup_steps: 400
+    batch_size: 16
+    learning_rate: 2e-4
+    epochs: 20
+    warmup_steps: 200
     contrastive_weight: 0.3
     contrastive_temperature: 0.07
     rationale_weight: 0.2
@@ -54,17 +39,5 @@ lora:
   lora_alpha: 32
   lora_dropout: 0.1
   target_modules:
-    - "query"
-    - "value"
-
-api:
-  groq_model: "llama-3.3-70b-versatile"
-  generator_model: "mistral-small-latest"
-  max_tokens: 80
-  temperature: 0.7
-
-evaluation:
-  primary_metric: "macro_f1"
-  harmful_classes: [1, 2]       # offensive + hatespeech indices
-  lime_num_samples: 500
-  lime_num_features: 10
+    - "qkv_proj"
+    - "o_proj"

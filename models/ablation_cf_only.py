@@ -6,27 +6,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import get_peft_model, LoraConfig, TaskType
 from configs.config_loader import load_config
 
 config = load_config()
 
+CLASS_WEIGHTS = torch.tensor([0.827, 1.164, 1.072])
+
 
 class AblationCFOnlyModel(nn.Module):
     """
-    Model C (Ablation) — HateBERT trained on CF-augmented data WITHOUT contrastive loss.
-    
-    This ablation tests the effect of counterfactual data alone, independent of the
-    contrastive loss component. During training, it:
-    - Receives (original, counterfactual) pairs
-    - Uses ONLY the original text for classification loss
-    - Ignores the CF embeddings and applies standard cross-entropy
-    
-    If this model outperforms the baseline, it means CF data helps even without
-    contrastive learning. If the proposed model significantly outperforms this,
-    it indicates the contrastive component is critical.
-    
-    Research purpose: Isolate the contribution of contrastive learning vs. CF data.
+    Model C — Phi-3.5-mini with LoRA + CF data but NO contrastive loss.
+    Isolates contribution of CF data vs contrastive objective.
     """
 
     def __init__(self, num_labels: int = 3):
@@ -34,28 +26,42 @@ class AblationCFOnlyModel(nn.Module):
         model_name = config["models"]["hatebert"]["name"]
 
         print(f"Loading HateBERT for ablation (CF-only): {model_name}")
-        base_model = AutoModelForSequenceClassification.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            num_labels=num_labels,
-            ignore_mismatched_sizes=True,
+            dtype=torch.float16,
             attn_implementation="eager",
         )
 
-        # Apply LoRA
-        from peft import get_peft_model, LoraConfig, TaskType
         lora_config = LoraConfig(
-            task_type=TaskType.SEQ_CLS,
             r=config["lora"]["r"],
             lora_alpha=config["lora"]["lora_alpha"],
             lora_dropout=config["lora"]["lora_dropout"],
             target_modules=config["lora"]["target_modules"],
             bias="none",
+            task_type=TaskType.CAUSAL_LM,
         )
         self.model = get_peft_model(base_model, lora_config)
-        trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        total     = sum(p.numel() for p in self.model.parameters())
+
+        hidden_size      = self.model.config.hidden_size
+        self.classifier  = nn.Linear(hidden_size, num_labels)
+        self.num_labels  = num_labels
+
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total     = sum(p.numel() for p in self.parameters())
         print(f"  LoRA trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
-        self.num_labels = num_labels
+
+    def _get_last_hidden(self, input_ids, attention_mask):
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+        )
+        hidden_states = outputs.hidden_states[-1]
+        seq_lengths   = attention_mask.sum(dim=1) - 1
+        return hidden_states[
+            torch.arange(hidden_states.size(0), device=hidden_states.device),
+            seq_lengths,
+        ].float()
 
     def forward(
         self,
@@ -64,35 +70,16 @@ class AblationCFOnlyModel(nn.Module):
         labels:         torch.Tensor = None,
         rationale_mask: torch.Tensor = None,
     ) -> dict:
-        """
-        Standard forward pass.
-        
-        Args:
-            input_ids:      [batch_size, seq_len]
-            attention_mask: [batch_size, seq_len]
-            labels:         [batch_size] optional
+        _ = rationale_mask
+        embedding = self._get_last_hidden(input_ids, attention_mask)
+        logits    = self.classifier(embedding)
 
-        Returns:
-            dict with keys: loss (optional), logits, embeddings
-        """
-        outputs = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            output_hidden_states=True,
-        )
-
-        # CLS token embedding from last hidden state
-        # Shape: [batch_size, hidden_size]
-        cls_embedding = outputs.hidden_states[-1][:, 0, :]
-
-        result = {
-            "logits":     outputs.logits,
-            "embeddings": cls_embedding,
-        }
+        result = {"logits": logits, "embeddings": embedding}
 
         if labels is not None:
-            weights = torch.tensor([0.827, 1.164, 1.072], device=labels.device)
-            result["loss"] = nn.CrossEntropyLoss(weight=weights)(outputs.logits, labels)
+            weights = CLASS_WEIGHTS.to(labels.device)
+            loss_fn = nn.CrossEntropyLoss(weight=weights)
+            result["loss"] = loss_fn(logits, labels)
 
         return result
 
@@ -106,196 +93,67 @@ class AblationCFOnlyModel(nn.Module):
         cf_labels:           torch.Tensor,
         orig_rationale_mask: torch.Tensor = None,
     ) -> dict:
-        """
-        Forward pass during CF pair training (ablation version).
-        
-        KEY DIFFERENCE from proposed model: NO contrastive loss.
-        We only use cross-entropy on the ORIGINAL texts.
-        The CF texts are present in the batch but not used for loss computation.
-        
-        This tests: "Does having CF pairs help, even without contrastive learning?"
-        
-        Args:
-            orig_input_ids:      [batch_size, seq_len]
-            orig_attention_mask: [batch_size, seq_len]
-            orig_labels:         [batch_size] — labels of original texts (1 or 2 for harmful)
-            cf_input_ids:        [batch_size, seq_len] — CF texts (loaded for symmetry, not used)
-            cf_attention_mask:   [batch_size, seq_len]
-            cf_labels:           [batch_size] — labels of CFs (always 0, not used)
+        _ = cf_labels, orig_rationale_mask
+        orig_emb    = self._get_last_hidden(orig_input_ids, orig_attention_mask)
+        orig_logits = self.classifier(orig_emb)
+        cf_emb      = self._get_last_hidden(cf_input_ids, cf_attention_mask)
+        cf_logits   = self.classifier(cf_emb)
 
-        Returns:
-            dict with keys: loss, orig_logits, orig_embeddings, cf_logits, cf_embeddings
-        """
-        # Process originals
-        orig_outputs = self.model(
-            input_ids=orig_input_ids,
-            attention_mask=orig_attention_mask,
-            output_hidden_states=True,
-        )
-        orig_embeddings = orig_outputs.hidden_states[-1][:, 0, :]
-        orig_logits     = orig_outputs.logits
-
-        # Process counterfactuals (for logging/analysis only)
-        cf_outputs = self.model(
-            input_ids=cf_input_ids,
-            attention_mask=cf_attention_mask,
-            output_hidden_states=True,
-        )
-        cf_embeddings = cf_outputs.hidden_states[-1][:, 0, :]
-        cf_logits     = cf_outputs.logits
-
-        # ABLATION: Only compute CE loss on originals, no contrastive component
-        weights = torch.tensor([0.827, 1.164, 1.072], device=orig_labels.device)
+        weights = CLASS_WEIGHTS.to(orig_labels.device)
         ce_loss = nn.CrossEntropyLoss(weight=weights)(orig_logits, orig_labels)
 
         return {
             "loss": ce_loss,
             "loss_breakdown": {
-                "total":        ce_loss.item(),
-                "ce":           ce_loss.item(),
-                "contrastive":  0.0,  # No contrastive loss in this ablation
-                "lambda":       0.0,
+                "total":       ce_loss.item(),
+                "ce":          ce_loss.item(),
+                "contrastive": 0.0,
+                "lambda":      0.0,
             },
             "orig_logits":     orig_logits,
-            "orig_embeddings": orig_embeddings,
+            "orig_embeddings": orig_emb,
             "cf_logits":       cf_logits,
-            "cf_embeddings":   cf_embeddings,
+            "cf_embeddings":   cf_emb,
         }
 
-    def get_embeddings(
-        self,
-        input_ids:      torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> torch.Tensor:
-        """Extract CLS embeddings without computing loss."""
+    def get_embeddings(self, input_ids, attention_mask):
         with torch.no_grad():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=True,
-            )
-        return outputs.hidden_states[-1][:, 0, :]
-
-    def get_predictions(
-        self,
-        input_ids:      torch.Tensor,
-        attention_mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Get class predictions and confidence scores.
-        
-        Returns:
-            (predictions, confidences) — both [batch_size]
-        """
-        with torch.no_grad():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-            )
-        probs = torch.softmax(outputs.logits, dim=1)
-        preds = torch.argmax(probs, dim=1)
-        confidences = probs.max(dim=1).values
-        return preds, confidences
+            return self._get_last_hidden(input_ids, attention_mask)
 
 
 def get_tokenizer():
-    """Return the HateBERT tokenizer."""
-    return AutoTokenizer.from_pretrained(config["models"]["hatebert"]["name"])
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["models"]["hatebert"]["name"],
+        trust_remote_code=True,
+    )
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
+    return tokenizer
 
-
-# ── Smoke test ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("=== Ablation Model (CF-Only, No Contrastive) Smoke Test ===\n")
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}\n")
-
-    # Load model and tokenizer
+    print("=== Ablation Model Smoke Test ===\n")
+    device    = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = get_tokenizer()
     model     = AblationCFOnlyModel(num_labels=3).to(device)
 
-    # Sample texts
-    orig_texts = [
-        "I hate all immigrants they should be deported.",
-        "Women are too stupid to be leaders.",
-    ]
-    orig_labels = torch.tensor([2, 1]).to(device)  # hate, offensive
+    texts  = ["I hate immigrants.", "Women can not lead."]
+    labels = torch.tensor([2, 1]).to(device)
+    cf_texts  = ["Immigration is complex.", "Women have diverse strengths."]
+    cf_labels = torch.tensor([0, 0]).to(device)
 
-    cf_texts = [
-        "Different groups of people have diverse perspectives and contributions.",
-        "Women have varied capabilities and skills like anyone else.",
-    ]
-    cf_labels = torch.tensor([0, 0]).to(device)  # normal, normal
+    enc    = tokenizer(texts, padding=True, truncation=True,
+                       max_length=64, return_tensors="pt")
+    cf_enc = tokenizer(cf_texts, padding=True, truncation=True,
+                       max_length=64, return_tensors="pt")
 
-    # Tokenize
-    orig_encoding = tokenizer(
-        orig_texts,
-        padding=True,
-        truncation=True,
-        max_length=config["models"]["hatebert"]["max_length"],
-        return_tensors="pt",
+    out = model(enc["input_ids"].to(device), enc["attention_mask"].to(device), labels)
+    print(f"Forward loss: {out['loss'].item():.4f}")
+
+    pair_out = model.forward_pair(
+        enc["input_ids"].to(device), enc["attention_mask"].to(device), labels,
+        cf_enc["input_ids"].to(device), cf_enc["attention_mask"].to(device), cf_labels,
     )
-    cf_encoding = tokenizer(
-        cf_texts,
-        padding=True,
-        truncation=True,
-        max_length=config["models"]["hatebert"]["max_length"],
-        return_tensors="pt",
-    )
-
-    orig_input_ids      = orig_encoding["input_ids"].to(device)
-    orig_attention_mask = orig_encoding["attention_mask"].to(device)
-    cf_input_ids        = cf_encoding["input_ids"].to(device)
-    cf_attention_mask   = cf_encoding["attention_mask"].to(device)
-
-    print("── Standard forward pass (no CF) ──")
-    output = model(orig_input_ids, orig_attention_mask, orig_labels)
-    print(f"  Loss:            {output['loss'].item():.4f}")
-    print(f"  Logits shape:    {output['logits'].shape}")
-    print(f"  Embeddings shape:{output['embeddings'].shape}")
-
-    print("\n── Forward pass with CF pairs (NO contrastive loss — ablation) ──")
-    pair_output = model.forward_pair(
-        orig_input_ids,
-        orig_attention_mask,
-        orig_labels,
-        cf_input_ids,
-        cf_attention_mask,
-        cf_labels,
-    )
-    print(f"  Loss (CE only):  {pair_output['loss'].item():.4f}")
-    print(f"  Loss breakdown:")
-    for key, val in pair_output["loss_breakdown"].items():
-        if key != "lambda":
-            print(f"    {key:15s}: {val:.4f}")
-        else:
-            print(f"    {key:15s}: {val:.2f}")
-    print(f"  [Note: contrastive = 0.0 because this is the ablation]")
-
-    print("\n── Original text predictions ──")
-    preds, confs = model.get_predictions(orig_input_ids, orig_attention_mask)
-    label_names = config["labels"]["id2label"]
-    for i, text in enumerate(orig_texts):
-        print(f"  Text:      {text[:50]}...")
-        print(f"  Predicted: {label_names[preds[i].item()]} "
-            f"(confidence: {confs[i].item():.2%})")
-        print(f"  True:      {label_names[orig_labels[i].item()]}")
-        print()
-
-    print("── CF text predictions (for reference) ──")
-    cf_preds, cf_confs = model.get_predictions(cf_input_ids, cf_attention_mask)
-    for i, text in enumerate(cf_texts):
-        print(f"  Text:      {text[:50]}...")
-        print(f"  Predicted: {label_names[cf_preds[i].item()]} "
-            f"(confidence: {cf_confs[i].item():.2%})")
-        print(f"  True:      {label_names[cf_labels[i].item()]}")
-        print()
-
-    print("── Parameter count ──")
-    total     = sum(p.numel() for p in model.parameters())
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Total params:     {total:,}")
-    print(f"  Trainable params: {trainable:,}")
-
-    print("\nAblation model (CF-only) smoke test passed!")
+    print(f"Pair loss: {pair_out['loss'].item():.4f}")
+    print("Ablation smoke test passed!")
