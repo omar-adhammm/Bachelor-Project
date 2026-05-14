@@ -16,20 +16,20 @@ labels:
 
 models:
   hatebert:
-    name: "microsoft/Phi-3.5-mini-instruct"
+    name: "vinai/bertweet-base"
     max_length: 128
-    batch_size: 16
+    batch_size: 32
     learning_rate: 2e-5
     epochs: 35
-    warmup_steps: 200
+    warmup_steps: 400
 
   proposed:
-    name: "microsoft/Phi-3.5-mini-instruct"
+    name: "vinai/bertweet-base"
     max_length: 128
-    batch_size: 16
+    batch_size: 32
     learning_rate: 2e-5
     epochs: 35
-    warmup_steps: 200
+    warmup_steps: 400
     contrastive_weight: 0.3
     contrastive_temperature: 0.07
     rationale_weight: 0.2
@@ -39,5 +39,5 @@ lora:
   lora_alpha: 32
   lora_dropout: 0.1
   target_modules:
-    - "qkv_proj"
-    - "o_proj"
+    - "query"
+    - "value"
