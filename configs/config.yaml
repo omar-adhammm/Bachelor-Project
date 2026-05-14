@@ -1,6 +1,6 @@
 paths:
-  data: "data/raw"
-  cf_pairs: "outputs/cf_pairs"
+  data: "data/raw/official"
+  cf_pairs: "outputs/cf_pairs_official"
   checkpoints: "outputs/model_checkpoints"
   results: "outputs/results"
 
