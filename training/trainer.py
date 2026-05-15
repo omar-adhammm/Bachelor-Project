@@ -52,7 +52,7 @@ class ModelTrainer:
         
         print(f"Device: {self.device}\n")
 
-    def get_contrastive_weight(self, epoch: int, total_epochs: int) -> float:
+    def get_contrastive_weight(self, epoch: int) -> float:
         """
         Ramp contrastive weight from 0 to full over first 10 epochs.
         This lets CE loss stabilize before contrastive losses kick in.
