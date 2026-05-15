@@ -90,11 +90,16 @@ class ModelTrainer:
 
         print("Models loaded.\n")
 
-    def setup_data(self):
+    def setup_data(self, model_name=None):
         """Load and prepare datasets for all models."""
         print("=== Setting up data ===\n")
         
-        tokenizer = get_tokenizer_baseline()
+        # Use BERT tokenizer if training BERT, otherwise use BERTweet
+        if model_name == "bert":
+            from models.bert_baseline import get_tokenizer as get_tokenizer_bert
+            tokenizer = get_tokenizer_bert()
+        else:
+            tokenizer = get_tokenizer_baseline()
         batch_size = config["models"]["hatebert"]["batch_size"]
         max_length = config["models"]["hatebert"]["max_length"]
         
@@ -574,7 +579,7 @@ def main():
     
     # Setup
     trainer.setup_models(model_name=args.model)
-    trainer.setup_data()
+    trainer.setup_data(model_name=args.model)
     trainer.setup_optimizers()
     
     # Train
