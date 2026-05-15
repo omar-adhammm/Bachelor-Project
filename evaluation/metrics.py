@@ -36,14 +36,14 @@ def load_model_from_checkpoint(model_class, checkpoint_path: str, device: str = 
 
 # ── Run inference on a split ──────────────────────────────────────────────────
 
-def get_predictions(model, split: str, device: str = "cpu") -> tuple:
+def get_predictions(model, split: str, device: str = "cpu", model_name: str = "baseline") -> tuple:
     """
     Run model on a dataset split and return predictions + true labels.
     Returns: (all_preds, all_labels, all_probs)
     """
     from transformers import AutoTokenizer
-    model_name_key = getattr(model, 'model_name_key', "hatebert")
-    if model_name_key == "bert":
+
+    if model_name == "bert":
         tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
     else:
         tokenizer = AutoTokenizer.from_pretrained(config["models"]["hatebert"]["name"])
@@ -87,31 +87,24 @@ def compute_metrics(preds: np.ndarray, labels: np.ndarray) -> dict:
     Compute all metrics for a set of predictions.
     Returns a dict with all metrics.
     """
-    # Overall metrics
-    accuracy  = accuracy_score(labels, preds)
-    macro_f1  = f1_score(labels, preds, average="macro", zero_division=0)
+    accuracy    = accuracy_score(labels, preds)
+    macro_f1    = f1_score(labels, preds, average="macro", zero_division=0)
     weighted_f1 = f1_score(labels, preds, average="weighted", zero_division=0)
-
-    # Per-class F1
     per_class_f1 = f1_score(labels, preds, average=None, zero_division=0)
 
-    # Harmful-subset metrics (offensive + hate combined)
-    # Treat both offensive(1) and hate(2) as "harmful", normal(0) as "not harmful"
-    harmful_mask    = labels != 0
-    harmful_preds   = preds[harmful_mask]
-    harmful_labels  = labels[harmful_mask]
+    harmful_mask   = labels != 0
+    harmful_preds  = preds[harmful_mask]
+    harmful_labels = labels[harmful_mask]
 
     harmful_f1 = f1_score(
         harmful_labels, harmful_preds,
         average="macro", zero_division=0
     ) if len(harmful_labels) > 0 else 0.0
 
-    # Binary harmful vs normal F1
     binary_labels = (labels != 0).astype(int)
     binary_preds  = (preds  != 0).astype(int)
     binary_f1     = f1_score(binary_labels, binary_preds, average="binary", zero_division=0)
 
-    # Confusion matrix
     cm = confusion_matrix(labels, preds, labels=[0, 1, 2])
 
     return {
@@ -156,10 +149,10 @@ def print_metrics(metrics: dict, model_name: str = "Model"):
 
 def compare_models(results: dict):
     """Print a side-by-side comparison table of all models."""
-    print(f"\n{'='*75}")
+    print(f"\n{'='*85}")
     print(f"  CROSS-MODEL COMPARISON — TEST SET")
-    print(f"{'='*75}")
-    print(f"  {'Metric':<25} {'Bert':>10} {'Baseline':>10} {'Ablation':>10} {'Proposed':>10}")
+    print(f"{'='*85}")
+    print(f"  {'Metric':<25} {'BERT':>10} {'Baseline':>10} {'Ablation':>10} {'Proposed':>10}")
     print(f"{'─'*85}")
 
     metrics_to_show = [
@@ -176,25 +169,23 @@ def compare_models(results: dict):
         vals = {m: results[m][key] for m in results if key in results[m]}
         row  = f"  {display_name:<25}"
 
-        for model_name in ["bert","baseline", "ablation", "proposed"]:
+        for model_name in ["bert", "baseline", "ablation", "proposed"]:
             if model_name in vals:
-                val = vals[model_name]
-                # Highlight best value
+                val  = vals[model_name]
                 best = max(vals.values())
                 marker = " *" if abs(val - best) < 1e-6 and len(vals) > 1 else "  "
                 row += f"  {val:.4f}{marker}"
             else:
                 row += f"  {'—':>10}"
 
-        # Mark key metric
         if key == "harmful_subset_f1":
             row += "  ← KEY"
 
         print(row)
 
-    print(f"{'='*75}")
+    print(f"{'='*85}")
     print(f"  * = best value for this metric")
-    print(f"{'='*75}\n")
+    print(f"{'='*85}\n")
 
 
 # ── Main evaluation runner ────────────────────────────────────────────────────
@@ -206,20 +197,17 @@ if __name__ == "__main__":
     from models.hatebert_baseline import HateBERTBaseline
     from models.proposed_model    import ProposedModel
     from models.ablation_cf_only  import AblationCFOnlyModel
-    from models.bert_baseline      import BERTBaseline
+    from models.bert_baseline     import BERTBaseline
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}\n")
 
-    # ── Find best checkpoints ─────────────────────────────────────────────────
     checkpoint_dir = Path(config["paths"]["checkpoints"])
 
     def find_best_checkpoint(model_prefix: str) -> str:
-        """Find the checkpoint with lowest val loss for a given model."""
         checkpoints = list(checkpoint_dir.glob(f"{model_prefix}_epoch_*.pt"))
         if not checkpoints:
             raise FileNotFoundError(f"No checkpoints found for {model_prefix}")
-        # Sort by val loss in filename
         best = min(checkpoints, key=lambda p: float(p.stem.split("loss_")[1]))
         return str(best)
 
@@ -239,20 +227,17 @@ if __name__ == "__main__":
 
         model = load_model_from_checkpoint(model_class, ckpt_path, device)
 
-        preds, labels, probs = get_predictions(model, "test", device)
+        preds, labels, probs = get_predictions(model, "test", device, model_name=model_name)
         metrics = compute_metrics(preds, labels)
         print_metrics(metrics, model_name)
 
         all_results[model_name] = metrics
 
-        # Free memory
         del model
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
-    # ── Side-by-side comparison ───────────────────────────────────────────────
     compare_models(all_results)
 
-    # ── Save results ──────────────────────────────────────────────────────────
     results_path = Path(config["paths"]["results"]) / "final_evaluation.json"
     with open(results_path, "w") as f:
         json.dump(all_results, f, indent=2)
