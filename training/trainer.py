@@ -27,6 +27,8 @@ from models.hatebert_baseline import HateBERTBaseline, get_tokenizer as get_toke
 from models.proposed_model import ProposedModel, get_tokenizer as get_tokenizer_proposed
 from models.ablation_cf_only import AblationCFOnlyModel, get_tokenizer as get_tokenizer_ablation
 
+from training.contrastive_loss import CFContrastiveLoss, BoundaryContrastiveLoss
+
 config = load_config()
 
 
@@ -42,6 +44,7 @@ class ModelTrainer:
         self.dataloaders = {}
         self.best_metrics = {}
         self.training_history = {}
+        self.boundary_loss = BoundaryContrastiveLoss(margin=0.5)
         
         # Create output directory for results
         self.results_dir = Path(config["paths"]["results"])
@@ -53,8 +56,20 @@ class ModelTrainer:
         """Initialize models — only load what's needed."""
         print("=== Setting up models ===\n")
         
-        models_to_load = [model_name] if model_name and model_name != "all" else ["baseline", "proposed", "ablation"]
-        
+        models_to_load = [model_name] if model_name and model_name != "all" else ["bert", "baseline", "proposed", "ablation"]
+
+        if "bert" in models_to_load:
+            from models.bert_baseline import BERTBaseline
+            print("Loading BERT Baseline (bert-base-uncased)...")
+            self.models["bert"] = BERTBaseline(num_labels=3).to(self.device)
+            self.training_history["bert"] = {"train_loss": [], "val_loss": [], "val_acc": []}
+            self.best_metrics["bert"] = {
+                "best_val_loss":     float("inf"),
+                "best_val_acc":      0.0,
+                "best_val_macro_f1": 0.0,
+                "best_epoch":        0,
+            }
+
         if "baseline" in models_to_load:
             print("Loading HateBERT Baseline...")
             self.models["baseline"] = HateBERTBaseline(num_labels=3).to(self.device)
@@ -171,6 +186,8 @@ class ModelTrainer:
             # Use model-specific learning rate if available
             if model_name == "proposed" and "learning_rate" in config["models"]["proposed"]:
                 lr = float(config["models"]["proposed"]["learning_rate"])
+            elif model_name == "bert" and "bert" in config["models"]:
+                lr = float(config["models"]["bert"]["learning_rate"])
             else:
                 lr = float(config["models"]["hatebert"]["learning_rate"])
 
@@ -210,6 +227,36 @@ class ModelTrainer:
         
         avg_loss = total_loss / len(self.dataloaders["baseline_train"])
         return avg_loss
+
+    def train_baseline_epoch_for(self, epoch, model_name):
+        """Train any baseline-style model for one epoch."""
+        self.models[model_name].train()
+        total_loss = 0.0
+
+        desc = f"{model_name.capitalize()} Epoch {epoch+1}"
+        pbar = tqdm(self.dataloaders["baseline_train"], desc=desc)
+
+        for batch in pbar:
+            input_ids      = batch["input_ids"].to(self.device)
+            attention_mask = batch["attention_mask"].to(self.device)
+            labels         = batch["label"].to(self.device)
+
+            self.optimizers[model_name].zero_grad()
+
+            output = self.models[model_name](input_ids, attention_mask, labels)
+            loss   = output["loss"]
+
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                self.models[model_name].parameters(), 1.0
+            )
+            self.optimizers[model_name].step()
+            self.schedulers[model_name].step()
+
+            total_loss += loss.item()
+            pbar.set_postfix({"loss": f"{loss.item():.4f}"})
+
+        return total_loss / len(self.dataloaders["baseline_train"])
 
     def train_contrastive_epoch(self, epoch, model_name):
         self.models[model_name].train()
@@ -253,6 +300,9 @@ class ModelTrainer:
                     )
 
                 batch_loss = std_output["loss"]
+                if "embeddings" in std_output:
+                    boundary   = self.boundary_loss(std_output["embeddings"], labels)
+                    batch_loss = batch_loss + 0.1 * boundary
 
             except StopIteration:
                 pass
@@ -298,36 +348,43 @@ class ModelTrainer:
         return total_loss / max(num_batches, 1)
 
     def evaluate(self, model_name, dataloader_key):
-        """Evaluate a model on a validation/test set."""
+        from sklearn.metrics import f1_score as sk_f1
+
         model = self.models[model_name]
         model.eval()
-        
+
         total_loss = 0.0
-        all_preds = []
+        all_preds  = []
         all_labels = []
-        
+
         with torch.no_grad():
-            for batch in tqdm(self.dataloaders[dataloader_key], desc=f"  Evaluating {model_name}..."):
-                input_ids = batch["input_ids"].to(self.device)
+            for batch in tqdm(
+                self.dataloaders[dataloader_key],
+                desc=f"  Evaluating {model_name}...",
+            ):
+                input_ids      = batch["input_ids"].to(self.device)
                 attention_mask = batch["attention_mask"].to(self.device)
-                labels = batch["label"].to(self.device)
-                
-                output = model(input_ids, attention_mask, labels)
+                labels         = batch["label"].to(self.device)
+
+                output     = model(input_ids, attention_mask, labels)
                 total_loss += output["loss"].item()
-                
+
                 probs = torch.softmax(output["logits"], dim=1)
                 preds = torch.argmax(probs, dim=1)
-                
+
                 all_preds.extend(preds.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
-        
+
         avg_loss = total_loss / len(self.dataloaders[dataloader_key])
         accuracy = np.mean(np.array(all_preds) == np.array(all_labels))
-        
-        return avg_loss, accuracy
+        macro_f1 = sk_f1(
+            all_labels, all_preds, average="macro", zero_division=0
+        )
+
+        return avg_loss, accuracy, macro_f1
 
     def train(self, num_epochs=None, model_name=None):
-        models_to_train = [model_name] if model_name and model_name != "all" else ["baseline", "proposed", "ablation"]
+        models_to_train = [model_name] if model_name and model_name != "all" else ["bert", "baseline", "proposed", "ablation"]
         if num_epochs is None:
             num_epochs = config["models"]["hatebert"]["epochs"]
 
@@ -340,7 +397,7 @@ class ModelTrainer:
 
         # Build schedulers
         for name in models_to_train:
-            if name == "baseline":
+            if name in ["baseline", "bert"]:
                 steps_per_epoch = len(self.dataloaders["baseline_train"])
             else:
                 steps_per_epoch = max(
@@ -348,9 +405,14 @@ class ModelTrainer:
                     len(self.dataloaders["cf_train"]),
                 )
             total_steps = steps_per_epoch * num_epochs
+            warmup      = int(self.config["models"]["hatebert"]["warmup_steps"])
+            if name == "bert" and "bert" in self.config["models"]:
+                warmup = int(self.config["models"]["bert"]["warmup_steps"])
+            elif name == "proposed":
+                warmup = int(self.config["models"]["proposed"]["warmup_steps"])
             self.schedulers[name] = get_linear_schedule_with_warmup(
                 self.optimizers[name],
-                num_warmup_steps=int(self.config["models"]["hatebert"]["warmup_steps"]),
+                num_warmup_steps=warmup,
                 num_training_steps=total_steps,
             )
             print(f"{name}: steps/epoch={steps_per_epoch}, total_steps={total_steps}")
@@ -365,23 +427,25 @@ class ModelTrainer:
             print(f"\n--- Epoch {epoch + 1}/{num_epochs} ---\n")
 
             for name in active:
-                if name == "baseline":
-                    loss = self.train_baseline_epoch(epoch)
+                if name in ["baseline", "bert"]:
+                    loss = self.train_baseline_epoch_for(epoch, name)
                 else:
                     loss = self.train_contrastive_epoch(epoch, name)
                 self.training_history[name]["train_loss"].append(loss)
 
             print("\n--- Validation ---\n")
             for name in active:
-                val_loss, val_acc = self.evaluate(name, "baseline_val")
+                val_loss, val_acc, val_macro_f1 = self.evaluate(name, "baseline_val")
                 self.training_history[name]["val_loss"].append(val_loss)
                 self.training_history[name]["val_acc"].append(val_acc)
-                print(f"  {name:12s}: val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+                self.training_history[name].setdefault("val_macro_f1", []).append(val_macro_f1)
+                print(f"  {name:12s}: val_loss={val_loss:.4f}, val_acc={val_acc:.4f}, val_macro_f1={val_macro_f1:.4f}")
 
-                if val_acc > self.best_metrics[name].get("best_val_acc", 0.0):
-                    self.best_metrics[name]["best_val_loss"] = val_loss
-                    self.best_metrics[name]["best_val_acc"]  = val_acc
-                    self.best_metrics[name]["best_epoch"]    = epoch
+                if val_macro_f1 > self.best_metrics[name].get("best_val_macro_f1", 0.0):
+                    self.best_metrics[name]["best_val_loss"]     = val_loss
+                    self.best_metrics[name]["best_val_acc"]      = val_acc
+                    self.best_metrics[name]["best_val_macro_f1"] = val_macro_f1
+                    self.best_metrics[name]["best_epoch"]        = epoch
                     self.save_checkpoint(name, epoch, val_loss, val_acc)
                     no_improve[name] = 0
                 else:
@@ -412,39 +476,40 @@ class ModelTrainer:
         print(f"    Saved checkpoint: {checkpoint_path}")
 
     def evaluate_on_test(self):
-        """Final evaluation on test set."""
         print("\n=== Final Evaluation on Test Set ===\n")
-        
+
         for model_name in self.training_history.keys():
-            # Skip models that weren't trained this run
             if not self.training_history[model_name]["train_loss"]:
                 continue
-            test_loss, test_acc = self.evaluate(model_name, "baseline_test")
-            print(f"  {model_name:12s}: test_loss={test_loss:.4f}, test_acc={test_acc:.4f}")
-            self.training_history[model_name]["test_loss"] = test_loss
-            self.training_history[model_name]["test_acc"] = test_acc
+            test_loss, test_acc, test_macro_f1 = self.evaluate(
+                model_name, "baseline_test"
+            )
+            print(f"  {model_name:12s}: test_loss={test_loss:.4f}, "
+                  f"test_acc={test_acc:.4f}, test_macro_f1={test_macro_f1:.4f}")
+            self.training_history[model_name]["test_loss"]     = test_loss
+            self.training_history[model_name]["test_acc"]      = test_acc
+            self.training_history[model_name]["test_macro_f1"] = test_macro_f1
         print()
 
     def print_summary(self):
-        """Print training summary."""
         print("=== Final Summary ===\n")
-        
+
         for model_name, hist in self.training_history.items():
             best = self.best_metrics[model_name]
-            
-            # Skip models that weren't trained this run
             if not hist["train_loss"]:
                 continue
-                
+
             print(f"{model_name.upper()}")
             print(f"  Best epoch:        {best['best_epoch']}")
             print(f"  Best val loss:     {best['best_val_loss']:.4f}")
             print(f"  Best val acc:      {best.get('best_val_acc', 0.0):.4f}")
+            print(f"  Best val macro_f1: {best.get('best_val_macro_f1', 0.0):.4f}")
             print(f"  Final train loss:  {hist['train_loss'][-1]:.4f}")
             print(f"  Final val loss:    {hist['val_loss'][-1]:.4f}")
             print(f"  Final val acc:     {hist['val_acc'][-1]:.4f}")
             if "test_acc" in hist:
                 print(f"  Test acc:          {hist['test_acc']:.4f}")
+                print(f"  Test macro_f1:     {hist.get('test_macro_f1', 0.0):.4f}")
             print()
 
     def save_results(self):
@@ -497,7 +562,10 @@ def main():
     parser = argparse.ArgumentParser(description="Train all three models simultaneously")
     parser.add_argument("--epochs", type=int, default=None, help="Number of epochs (default: from config)")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use (cuda or cpu)")
-    parser.add_argument("--model", type=str, default="all", choices=["baseline", "proposed", "ablation", "all"], help="Which model to train")
+    parser.add_argument(
+        "--model", type=str, default="all",
+        choices=["bert", "baseline", "proposed", "ablation", "all"],
+    )
     args = parser.parse_args()
     
     device = args.device if torch.cuda.is_available() else "cpu"

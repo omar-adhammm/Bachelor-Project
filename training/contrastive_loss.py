@@ -305,6 +305,40 @@ class RationaleSupervisionLoss(nn.Module):
         kl_loss = torch.nan_to_num(kl_loss, nan=0.0, posinf=0.0, neginf=0.0)
 
         return kl_loss.mean()
+    
+import torch.nn.functional as F
+
+class BoundaryContrastiveLoss(nn.Module):
+    """
+    Pushes offensive embeddings away from hatespeech embeddings.
+    Directly addresses the offensive vs hatespeech boundary confusion.
+    """
+    def __init__(self, margin: float = 0.5):
+        super().__init__()
+        self.margin = margin
+
+    def forward(self,
+                embeddings: torch.Tensor,
+                labels: torch.Tensor) -> torch.Tensor:
+
+        offensive_mask  = (labels == 1)
+        hatespeech_mask = (labels == 2)
+
+        if offensive_mask.sum() == 0 or hatespeech_mask.sum() == 0:
+            return torch.tensor(0.0, device=embeddings.device)
+
+        off_embs  = embeddings[offensive_mask]
+        hate_embs = embeddings[hatespeech_mask]
+
+        off_norm  = F.normalize(off_embs,  dim=1)
+        hate_norm = F.normalize(hate_embs, dim=1)
+
+        # Pairwise similarities between all offensive and hatespeech embeddings
+        sim_matrix = torch.mm(off_norm, hate_norm.T)
+
+        # Penalize when offensive and hatespeech are too similar
+        loss = F.relu(sim_matrix + self.margin).mean()
+        return loss
 
 
 # ── Smoke test ────────────────────────────────────────────────────────────────

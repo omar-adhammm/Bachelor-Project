@@ -48,6 +48,7 @@ class ProposedModel(nn.Module):
         hidden_size     = self.model.config.hidden_size
         self.classifier = nn.Linear(hidden_size, num_labels).float()
         self.num_labels = num_labels
+        self.config     = config
 
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
         total     = sum(p.numel() for p in self.parameters())
@@ -70,10 +71,9 @@ class ProposedModel(nn.Module):
         self,
         input_ids:      torch.Tensor,
         attention_mask: torch.Tensor,
-        labels:          torch.Tensor = None,
-        rationale_mask:  torch.Tensor = None,
+        labels:         torch.Tensor = None,
+        rationale_mask: torch.Tensor = None,
     ) -> dict:
-        _ = rationale_mask  # accepted for API compatibility, not used in this model
         embedding = self._get_last_hidden(input_ids, attention_mask)
         logits    = self.classifier(embedding)
 
@@ -82,7 +82,19 @@ class ProposedModel(nn.Module):
         if labels is not None:
             weights = CLASS_WEIGHTS.to(labels.device)
             loss_fn = nn.CrossEntropyLoss(weight=weights)
-            result["loss"] = loss_fn(logits, labels)
+            ce_loss = loss_fn(logits, labels)
+
+            if rationale_mask is not None and rationale_mask.sum() > 0:
+                has_rationale = (rationale_mask.sum(dim=1) > 0).float()
+                probs         = torch.softmax(logits, dim=1)
+                confidence    = probs.max(dim=1).values
+                rationale_weight = float(
+                    self.config["models"]["proposed"].get("rationale_weight", 0.1)
+                ) if hasattr(self, "config") else 0.1
+                rationale_loss = (has_rationale * (1 - confidence)).mean()
+                result["loss"] = ce_loss + rationale_weight * rationale_loss
+            else:
+                result["loss"] = ce_loss
 
         return result
 

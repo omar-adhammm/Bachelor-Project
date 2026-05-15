@@ -79,7 +79,7 @@ def load_bertweet_model(checkpoint_path: str, device: str):
     """Load BERTweet proposed model from checkpoint."""
     print(f"Loading BERTweet from: {checkpoint_path}")
     model = ProposedModel(num_labels=3).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     print("BERTweet loaded successfully")

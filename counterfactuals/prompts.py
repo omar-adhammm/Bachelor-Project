@@ -1,39 +1,43 @@
 # counterfactuals/prompts.py
 
-ZERO_SHOT_CF_PROMPT = """You are a text editor. Your task is to rewrite a harmful text into a non-harmful version, output only the rewritten sentence, nothing else, and follow these rules:
+ZERO_SHOT_CF_PROMPT = """You are a text editor. Your task is to change ONLY the harmful words in the text below to make it non-harmful.
+
+Text: {text}
+Harmful words to change: {rationale_tokens}
 
 Rules:
-1. Keep the SAME topic and context
-2. Remove or neutralize the harmful intent
-3. Keep similar sentence length and structure
-4. Output ONLY the rewritten text — no explanation, no quotes, no preamble
+1. ONLY change the words listed in "Harmful words to change" — do not touch anything else
+2. Replace each harmful word with a neutral alternative that fits naturally
+3. Keep every other word exactly the same
+4. Keep the same sentence length and structure
+5. Output ONLY the modified text — no explanation, no quotes, no preamble
 
-Original text: {text}
-
-Rewritten version:"""
+Modified text:"""
 
 
-FEW_SHOT_CF_PROMPT = """You are a text editor. Your task is to rewrite harmful text into non-harmful versions.
-Study these examples first:
+FEW_SHOT_CF_PROMPT = """You are a text editor. Your task is to change ONLY the harmful words in text to make it non-harmful.
+
+Study these examples — notice how only the harmful words are changed:
 
 {examples}
 
-Now rewrite the following text using the same approach:
+Now apply the same approach:
+
+Text: {text}
+Harmful words to change: {rationale_tokens}
 
 Rules:
-1. Keep the SAME topic and context
-2. Remove or neutralize the harmful intent
-3. Keep similar sentence length and structure
-4. Output ONLY the rewritten text — no explanation, no quotes, no preamble
+1. ONLY change the words listed in "Harmful words to change" — do not touch anything else
+2. Replace each harmful word with a neutral alternative that fits naturally
+3. Keep every other word exactly the same
+4. Output ONLY the modified text — no explanation, no quotes, no preamble
 
-Original text: {text}
-
-Rewritten version:"""
+Modified text:"""
 
 
 VERIFIER_PROMPT = """You are a hate speech classifier. Classify the following text into exactly one of these categories:
 - normal
-- offensive  
+- offensive
 - hatespeech
 
 Text: {text}
@@ -54,60 +58,43 @@ Reconsider carefully.
 Respond with ONLY one word — either: normal, offensive, or hatespeech"""
 
 
-RETRY_CF_PROMPT = """You are a text editor. Your previous rewrite was not good enough.
+RETRY_CF_PROMPT = """You are a text editor. Your previous rewrite was still classified as harmful.
 
-Original harmful text: {original_text}
-Your previous rewrite: {previous_cf}
-Problem: your rewrite was still classified as {previous_label}, not as normal/non-harmful.
+Original text: {original_text}
+Harmful words to change: {rationale_tokens}
+Your previous attempt: {previous_cf}
+Problem: your rewrite was classified as {previous_label} — not as normal.
 
-Try again. Make more significant changes to remove the harmful content, output only the rewritten sentence, and follow these rules:
+Try again. You MUST only change the words listed in "Harmful words to change".
+Keep everything else exactly the same.
 
-Rules:
-1. Keep the SAME topic and context
-2. Completely remove or neutralize the harmful intent
-3. Keep similar sentence length and structure  
-4. Output ONLY the rewritten text — no explanation, no quotes, no preamble
+Output ONLY the modified text — no explanation, no quotes, no preamble
 
-Rewritten version:"""
+Modified text:"""
 
 
-def format_few_shot_examples(seed_examples: list[dict]) -> str:
-    """
-    Format seed examples for the few-shot prompt.
-    Each seed must have: original (str), counterfactual (str)
-    """
+def format_few_shot_examples(seed_examples: list) -> str:
     lines = []
     for i, ex in enumerate(seed_examples, 1):
         lines.append(f"Example {i}:")
-        lines.append(f"  Original:  {ex['original']}")
-        lines.append(f"  Rewritten: {ex['counterfactual']}")
+        lines.append(f"  Original:       {ex['original']}")
+        lines.append(f"  Harmful words:  {ex.get('rationale_tokens', 'N/A')}")
+        lines.append(f"  Modified:       {ex['counterfactual']}")
         lines.append("")
     return "\n".join(lines)
 
 
 if __name__ == "__main__":
-    # Quick visual check
     print("=== ZERO SHOT PROMPT ===")
-    print(ZERO_SHOT_CF_PROMPT.format(text="Sample hate speech text here"))
-
-    print("\n=== VERIFIER PROMPT ===")
-    print(VERIFIER_PROMPT.format(text="Sample text to classify"))
+    print(ZERO_SHOT_CF_PROMPT.format(
+        text="those immigrants are ruining our country",
+        rationale_tokens="['ruining']"
+    ))
 
     print("\n=== RETRY PROMPT ===")
     print(RETRY_CF_PROMPT.format(
-        original_text="Original bad text",
-        previous_cf="Still bad rewrite",
+        original_text="those immigrants are ruining our country",
+        rationale_tokens="['ruining']",
+        previous_cf="those immigrants are destroying our country",
         previous_label="offensive"
     ))
-
-    print("\n=== FEW SHOT EXAMPLES FORMAT ===")
-    seeds = [
-        {"original": "I hate all X people",     "counterfactual": "I disagree with some people's views"},
-        {"original": "All Y should be removed",  "counterfactual": "Society should address certain challenges"},
-    ]
-    print(FEW_SHOT_CF_PROMPT.format(
-        examples=format_few_shot_examples(seeds),
-        text="New text to rewrite"
-    ))
-
-    print("\nprompts.py loaded successfully!")

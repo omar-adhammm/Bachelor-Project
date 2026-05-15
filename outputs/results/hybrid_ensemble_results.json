@@ -1,0 +1,62 @@
+{
+  "bertweet_only": {
+    "accuracy": 0.6746361746361746,
+    "macro_f1": 0.6655157821397353,
+    "weighted_f1": 0.6731957551481312,
+    "normal_f1": 0.7102425876010782,
+    "offensive_f1": 0.527089072543618,
+    "hatespeech_f1": 0.7592156862745097,
+    "harmful_subset_f1": 0.4793933423468542,
+    "binary_f1": 0.8181049069373942,
+    "confusion_matrix": [
+      [
+        527,
+        182,
+        73
+      ],
+      [
+        137,
+        287,
+        124
+      ],
+      [
+        38,
+        72,
+        484
+      ]
+    ]
+  },
+  "hybrid": {
+    "accuracy": 0.6725571725571725,
+    "macro_f1": 0.66059181288957,
+    "weighted_f1": 0.667224601290134,
+    "normal_f1": 0.6936416184971098,
+    "offensive_f1": 0.5182413470533208,
+    "hatespeech_f1": 0.7698924731182796,
+    "harmful_subset_f1": 0.4895090641958692,
+    "binary_f1": 0.827922077922078,
+    "confusion_matrix": [
+      [
+        480,
+        204,
+        98
+      ],
+      [
+        105,
+        277,
+        166
+      ],
+      [
+        17,
+        40,
+        537
+      ]
+    ]
+  },
+  "config": {
+    "confidence_threshold": 0.6,
+    "uncertain_count": 558,
+    "confident_count": 1366,
+    "gpt_changed": 260
+  }
+}

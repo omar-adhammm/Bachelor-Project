@@ -1,5 +1,6 @@
 paths:
   data: "data/raw/official"
+  raw_data: "data/raw/official"
   cf_pairs: "outputs/cf_pairs_official"
   checkpoints: "outputs/model_checkpoints"
   results: "outputs/results"
@@ -13,8 +14,19 @@ labels:
     normal: 0
     offensive: 1
     hatespeech: 2
+  harmful:
+    - "offensive"
+    - "hatespeech"
 
 models:
+  bert:
+    name: "bert-base-uncased"
+    max_length: 128
+    batch_size: 32
+    learning_rate: 2e-5
+    epochs: 10
+    warmup_steps: 200
+
   hatebert:
     name: "vinai/bertweet-base"
     max_length: 128
@@ -27,12 +39,12 @@ models:
     name: "vinai/bertweet-base"
     max_length: 128
     batch_size: 32
-    learning_rate: 2e-5
-    epochs: 35
+    learning_rate: 1e-5
+    epochs: 50
     warmup_steps: 400
     contrastive_weight: 0.3
     contrastive_temperature: 0.07
-    rationale_weight: 0.2
+    rationale_weight: 0.1
 
 lora:
   r: 16
@@ -41,3 +53,12 @@ lora:
   target_modules:
     - "query"
     - "value"
+
+counterfactual:
+  max_retries: 3
+  acceptance_threshold: 0.5
+  strategy: "zero_shot"
+
+api:
+  temperature: 0.3
+  max_tokens: 128

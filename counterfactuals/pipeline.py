@@ -34,28 +34,42 @@ CF_OUTPUT   = config["paths"]["cf_pairs"]
 
 # ── Single example CF generation with retry loop ──────────────────────────────
 
+def get_rationale_tokens(example: dict) -> list:
+    """Extract the actual token strings that are marked as harmful."""
+    text   = example.get("text", "")
+    mask   = example.get("rationale_mask", [])
+    tokens = text.split()
+
+    if not mask or not any(mask):
+        return None  # no rationale available
+
+    rationale = [
+        tokens[i] for i, val in enumerate(mask)
+        if val == 1 and i < len(tokens)
+    ]
+    return rationale if rationale else None
+
+
 def generate_cf_for_example(
     example:       dict,
     strategy:      str = "zero_shot",
-    seed_examples: list[dict] = None,
+    seed_examples: list = None,
     verbose:       bool = False,
 ) -> dict:
-    """
-    Generate and verify a counterfactual for one harmful example.
-    Returns a result dict with status, CF text, attempts, etc.
-    """
-    original_text  = example["text"]
-    original_label = example["label"]
+    original_text    = example["text"]
+    original_label   = example["label"]
+    rationale_tokens = get_rationale_tokens(example)
 
     result = {
-        "id":            example["id"],
-        "original_text": original_text,
+        "id":             example["id"],
+        "original_text":  original_text,
         "original_label": original_label,
-        "cf_text":       None,
-        "cf_label":      "normal",
-        "accepted":      False,
-        "attempts":      0,
-        "strategy_used": strategy,
+        "cf_text":        None,
+        "cf_label":       "normal",
+        "accepted":       False,
+        "attempts":       0,
+        "strategy_used":  strategy,
+        "rationale_tokens": rationale_tokens,
     }
 
     previous_cf    = None
@@ -67,17 +81,31 @@ def generate_cf_for_example(
         try:
             if attempt == 1:
                 if strategy == "few_shot" and seed_examples:
-                    cf_text = generate_few_shot(original_text, seed_examples)
+                    cf_text = generate_few_shot(
+                        original_text,
+                        seed_examples,
+                        rationale_tokens=rationale_tokens,
+                    )
                 else:
-                    cf_text = generate_zero_shot(original_text)
+                    cf_text = generate_zero_shot(
+                        original_text,
+                        rationale_tokens=rationale_tokens,
+                    )
             else:
-                cf_text = generate_retry(original_text, previous_cf, previous_label)
+                cf_text = generate_retry(
+                    original_text,
+                    previous_cf,
+                    previous_label,
+                    rationale_tokens=rationale_tokens,
+                )
 
             accepted, predicted = is_acceptable(cf_text, required_label="normal")
 
             if verbose:
                 status = "✓ ACCEPTED" if accepted else f"✗ rejected ({predicted})"
-                print(f"    Attempt {attempt}: {status} | {cf_text[:70]}...")
+                print(f"    Attempt {attempt}: {status}")
+                print(f"    Rationale tokens: {rationale_tokens}")
+                print(f"    CF: {cf_text[:80]}...")
 
             if accepted:
                 result["cf_text"]  = cf_text
@@ -86,11 +114,13 @@ def generate_cf_for_example(
 
             previous_cf    = cf_text
             previous_label = predicted
+            import time
             time.sleep(0.1)
 
         except Exception as e:
             if verbose:
                 print(f"    Attempt {attempt} ERROR: {e}")
+            import time
             time.sleep(0.5)
             continue
 
