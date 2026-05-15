@@ -47,6 +47,7 @@ class ProposedModel(nn.Module):
 
         hidden_size     = self.model.config.hidden_size
         self.classifier = nn.Linear(hidden_size, num_labels).float()
+        self._model_name_key = 'hatebert'
         self.num_labels = num_labels
         self.config     = config
 

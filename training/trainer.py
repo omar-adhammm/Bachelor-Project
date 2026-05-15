@@ -52,6 +52,19 @@ class ModelTrainer:
         
         print(f"Device: {self.device}\n")
 
+    def get_contrastive_weight(self, epoch: int, total_epochs: int) -> float:
+        """
+        Ramp contrastive weight from 0 to full over first 10 epochs.
+        This lets CE loss stabilize before contrastive losses kick in.
+        """
+        warmup_epochs = 10
+        max_weight = float(
+            self.config["models"]["proposed"].get("contrastive_weight", 0.3)
+        )
+        if epoch < warmup_epochs:
+            return max_weight * (epoch / warmup_epochs)
+        return max_weight
+
     def setup_models(self, model_name=None):
         """Initialize models — only load what's needed."""
         print("=== Setting up models ===\n")
@@ -306,8 +319,9 @@ class ModelTrainer:
 
                 batch_loss = std_output["loss"]
                 if "embeddings" in std_output:
+                    contrastive_w = self.get_contrastive_weight(epoch)
                     boundary   = self.boundary_loss(std_output["embeddings"], labels)
-                    batch_loss = batch_loss + 0.1 * boundary
+                    batch_loss = batch_loss + 0.1 * contrastive_w * boundary
 
             except StopIteration:
                 pass
@@ -331,10 +345,11 @@ class ModelTrainer:
                     orig_rationale_mask=orig_rationale_mask,
                 )
 
+                contrastive_w = self.get_contrastive_weight(epoch)
                 if batch_loss is not None:
-                    batch_loss = batch_loss + cf_output["loss"]
+                    batch_loss = batch_loss + contrastive_w * cf_output["loss"]
                 else:
-                    batch_loss = cf_output["loss"]
+                    batch_loss = contrastive_w * cf_output["loss"]
 
             except StopIteration:
                 pass

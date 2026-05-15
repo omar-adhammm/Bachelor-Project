@@ -32,6 +32,7 @@ class BERTBaseline(nn.Module):
         hidden_size     = self.encoder.config.hidden_size
         self.classifier = nn.Linear(hidden_size, num_labels)
         self.dropout    = nn.Dropout(0.1)
+        self._model_name_key = 'bert'
         self.num_labels = num_labels
 
         total = sum(p.numel() for p in self.parameters())

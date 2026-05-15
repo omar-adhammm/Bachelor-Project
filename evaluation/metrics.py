@@ -42,7 +42,11 @@ def get_predictions(model, split: str, device: str = "cpu") -> tuple:
     Returns: (all_preds, all_labels, all_probs)
     """
     from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(config["models"]["hatebert"]["name"])
+    model_name_key = getattr(model, 'model_name_key', "hatebert")
+    if model_name_key == "bert":
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(config["models"]["hatebert"]["name"])
 
     examples = load_split(split)
     dataset  = HateXplainDataset(
@@ -155,8 +159,8 @@ def compare_models(results: dict):
     print(f"\n{'='*75}")
     print(f"  CROSS-MODEL COMPARISON — TEST SET")
     print(f"{'='*75}")
-    print(f"  {'Metric':<25} {'Baseline':>10} {'Ablation':>10} {'Proposed':>10}")
-    print(f"{'─'*75}")
+    print(f"  {'Metric':<25} {'Bert':>10} {'Baseline':>10} {'Ablation':>10} {'Proposed':>10}")
+    print(f"{'─'*85}")
 
     metrics_to_show = [
         ("Accuracy",          "accuracy"),
@@ -172,7 +176,7 @@ def compare_models(results: dict):
         vals = {m: results[m][key] for m in results if key in results[m]}
         row  = f"  {display_name:<25}"
 
-        for model_name in ["baseline", "ablation", "proposed"]:
+        for model_name in ["bert","baseline", "ablation", "proposed"]:
             if model_name in vals:
                 val = vals[model_name]
                 # Highlight best value
@@ -202,6 +206,7 @@ if __name__ == "__main__":
     from models.hatebert_baseline import HateBERTBaseline
     from models.proposed_model    import ProposedModel
     from models.ablation_cf_only  import AblationCFOnlyModel
+    from models.bert_baseline      import BERTBaseline
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}\n")
@@ -219,6 +224,7 @@ if __name__ == "__main__":
         return str(best)
 
     model_configs = [
+        ("bert",     BERTBaseline,        find_best_checkpoint("bert")),
         ("baseline", HateBERTBaseline,    find_best_checkpoint("baseline")),
         ("ablation", AblationCFOnlyModel, find_best_checkpoint("ablation")),
         ("proposed", ProposedModel,       find_best_checkpoint("proposed")),
