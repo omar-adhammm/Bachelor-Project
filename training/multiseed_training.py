@@ -143,11 +143,17 @@ def build_loaders(model_name):
 
 # ── Class weights ─────────────────────────────────────────────────────────────
 def get_class_weights(device):
+    LABEL_MAP = {"normal": 0, "offensive": 1, "hatespeech": 2}
     examples = load_split("train")
-    labels   = [e["label"] for e in examples]
-    counts   = np.bincount(labels, minlength=3).astype(float)
-    weights  = 1.0 / counts
-    weights  = weights / weights.sum() * 3
+    labels   = []
+    for e in examples:
+        lbl = e["label"]
+        if isinstance(lbl, str):
+            lbl = LABEL_MAP.get(lbl, 0)
+        labels.append(int(lbl))
+    counts  = np.bincount(labels, minlength=3).astype(float)
+    weights = 1.0 / counts
+    weights = weights / weights.sum() * 3
     return torch.tensor(weights, dtype=torch.float).to(device)
 
 
@@ -230,11 +236,17 @@ def train_one_seed(model_name, model_class, seed):
 
                     # Boundary contrastive loss
                     emb       = output["embeddings"]
-                    off_mask  = (labels_std == 1)
-                    hate_mask = (labels_std == 2)
-                    if off_mask.sum() > 0 and hate_mask.sum() > 0:
-                        loss += 0.1 * warmup_weight * boundary_loss_fn(
-                            emb[off_mask], emb[hate_mask])
+                    off_embs  = emb[labels_std == 1]
+                    hate_embs = emb[labels_std == 2]
+                    if off_embs.shape[0] > 0 and hate_embs.shape[0] > 0:
+                        # Compute boundary loss manually without calling BoundaryContrastiveLoss
+                        # to avoid the internal masking conflict
+                        off_mean  = off_embs.mean(dim=0, keepdim=True)
+                        hate_mean = hate_embs.mean(dim=0, keepdim=True)
+                        cos_sim   = torch.nn.functional.cosine_similarity(
+                            off_mean, hate_mean, dim=1)
+                        boundary_loss = torch.relu(cos_sim + 0.5).mean()
+                        loss += 0.1 * warmup_weight * boundary_loss
 
                     # Rationale supervision loss
                     rat_mask = cf_batch["orig_rationale_mask"].to(device)
