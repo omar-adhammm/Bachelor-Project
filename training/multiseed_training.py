@@ -235,18 +235,12 @@ def train_one_seed(model_name, model_class, seed):
                     loss += 0.3 * warmup_weight * cf_loss_fn(orig_emb, cf_emb)
 
                     # Boundary contrastive loss
-                    emb       = output["embeddings"]
-                    off_embs  = emb[labels_std == 1]
-                    hate_embs = emb[labels_std == 2]
-                    if off_embs.shape[0] > 0 and hate_embs.shape[0] > 0:
-                        # Compute boundary loss manually without calling BoundaryContrastiveLoss
-                        # to avoid the internal masking conflict
-                        off_mean  = off_embs.mean(dim=0, keepdim=True)
-                        hate_mean = hate_embs.mean(dim=0, keepdim=True)
-                        cos_sim   = torch.nn.functional.cosine_similarity(
-                            off_mean, hate_mean, dim=1)
-                        boundary_loss = torch.relu(cos_sim + 0.5).mean()
-                        loss += 0.1 * warmup_weight * boundary_loss
+                    emb      = output["embeddings"]
+                    off_mask = (labels_std == 1)
+                    hate_mask = (labels_std == 2)
+                    if off_mask.sum() > 0 and hate_mask.sum() > 0:
+                        loss += 0.1 * warmup_weight * boundary_loss_fn(
+                            emb, labels_std)
 
                     # Rationale supervision loss
                     rat_mask = cf_batch["orig_rationale_mask"].to(device)
