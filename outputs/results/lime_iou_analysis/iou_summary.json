@@ -1,0 +1,22 @@
+{
+  "bert": {
+    "mean_iou": 0.0,
+    "std_iou": 0.0,
+    "n_examples": 0
+  },
+  "baseline": {
+    "mean_iou": 0.0,
+    "std_iou": 0.0,
+    "n_examples": 0
+  },
+  "ablation": {
+    "mean_iou": 0.0,
+    "std_iou": 0.0,
+    "n_examples": 0
+  },
+  "proposed": {
+    "mean_iou": 0.0,
+    "std_iou": 0.0,
+    "n_examples": 0
+  }
+}

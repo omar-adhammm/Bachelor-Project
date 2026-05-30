@@ -1,0 +1,1978 @@
+{
+  "mean_iou": 0.25677172691439,
+  "std_iou": 0.17547361209030088,
+  "n_examples": 32,
+  "examples": [
+    {
+      "text": "have a nice day at work white man",
+      "label": 1,
+      "true_rationale_tokens": [
+        "white",
+        "man"
+      ],
+      "pred_lime_tokens": [
+        "at",
+        "a",
+        "work"
+      ],
+      "iou": 0.0,
+      "explanation": [
+        [
+          "white",
+          -0.04461637310583406
+        ],
+        [
+          "work",
+          0.010997712212419925
+        ],
+        [
+          "have",
+          -0.008943329625289528
+        ],
+        [
+          "a",
+          0.008470100751791278
+        ],
+        [
+          "man",
+          -0.006217046396730309
+        ],
+        [
+          "day",
+          -0.0025960138785886687
+        ],
+        [
+          "at",
+          0.0015857581045041877
+        ],
+        [
+          "nice",
+          -0.0007446892040050307
+        ]
+      ]
+    },
+    {
+      "text": "<user> she looks retarded",
+      "label": 1,
+      "true_rationale_tokens": [
+        "retarded"
+      ],
+      "pred_lime_tokens": [
+        "she",
+        "looks",
+        "retarded"
+      ],
+      "iou": 0.3333333333333333,
+      "explanation": [
+        [
+          "retarded",
+          0.8051414305609301
+        ],
+        [
+          "she",
+          0.010221849341890223
+        ],
+        [
+          "looks",
+          0.0074404080398064835
+        ],
+        [
+          "user",
+          -0.000779983604229595
+        ]
+      ]
+    },
+    {
+      "text": "fuck that ghetto bitch she attacked a mother with child by pouring a drink on her and then punching her she punked the mother out in front of her child and in public people who do not know how to behave civilized should not be out in public",
+      "label": 1,
+      "true_rationale_tokens": [
+        "fuck",
+        "bitch",
+        "that",
+        "ghetto"
+      ],
+      "pred_lime_tokens": [
+        "fuck",
+        "ghetto",
+        "drink",
+        "bitch",
+        "on",
+        "how"
+      ],
+      "iou": 0.42857142857142855,
+      "explanation": [
+        [
+          "bitch",
+          0.2153866156227114
+        ],
+        [
+          "ghetto",
+          0.198047507011029
+        ],
+        [
+          "fuck",
+          0.06339251614098382
+        ],
+        [
+          "how",
+          0.05643057307393485
+        ],
+        [
+          "should",
+          -0.04133222994015923
+        ],
+        [
+          "on",
+          0.03424198690980059
+        ],
+        [
+          "by",
+          -0.029406637430641935
+        ],
+        [
+          "with",
+          -0.019555711089266722
+        ],
+        [
+          "in",
+          -0.0169845165130451
+        ],
+        [
+          "drink",
+          0.0010352782365282654
+        ]
+      ]
+    },
+    {
+      "text": "portrait of a lady on fire screening in atlanta literally the day after i go back home to k*ntucky <censored> the universe really hates pretentious dykes i guess",
+      "label": 2,
+      "true_rationale_tokens": [
+        "dykes"
+      ],
+      "pred_lime_tokens": [
+        "home",
+        "hates",
+        "dykes"
+      ],
+      "iou": 0.3333333333333333,
+      "explanation": [
+        [
+          "dykes",
+          0.03559067365146447
+        ],
+        [
+          "hates",
+          0.019877747957624974
+        ],
+        [
+          "pretentious",
+          -0.01395724749880669
+        ],
+        [
+          "the",
+          -0.005903951211508936
+        ],
+        [
+          "in",
+          -0.005868355152464668
+        ],
+        [
+          "after",
+          -0.004154571076891014
+        ],
+        [
+          "home",
+          0.004084911493756506
+        ],
+        [
+          "go",
+          -0.0037735399972106255
+        ],
+        [
+          "a",
+          -0.003206732815127625
+        ],
+        [
+          "universe",
+          -0.0024241835614133784
+        ]
+      ]
+    },
+    {
+      "text": "white people who have enough racial sense to avoid black areas for the obvious reasons still run around and act as though they can blindly trust jews to not lie to them and kike them over smdh",
+      "label": 2,
+      "true_rationale_tokens": [
+        "kike",
+        "jews"
+      ],
+      "pred_lime_tokens": [
+        "enough",
+        "blindly",
+        "over",
+        "jews",
+        "kike",
+        "them"
+      ],
+      "iou": 0.3333333333333333,
+      "explanation": [
+        [
+          "kike",
+          0.780663704083999
+        ],
+        [
+          "jews",
+          0.08892389947049474
+        ],
+        [
+          "blindly",
+          0.046116295260402736
+        ],
+        [
+          "to",
+          -0.04192612255924064
+        ],
+        [
+          "enough",
+          0.02865731902450223
+        ],
+        [
+          "them",
+          0.023998902945563783
+        ],
+        [
+          "around",
+          -0.018300262029201084
+        ],
+        [
+          "over",
+          0.017668344276308662
+        ],
+        [
+          "areas",
+          -0.015433930607666095
+        ],
+        [
+          "smdh",
+          -0.013012610121603091
+        ]
+      ]
+    },
+    {
+      "text": "<user> new look ching chong",
+      "label": 2,
+      "true_rationale_tokens": [
+        "ching",
+        "chong"
+      ],
+      "pred_lime_tokens": [
+        "ching",
+        "chong"
+      ],
+      "iou": 1.0,
+      "explanation": [
+        [
+          "ching",
+          0.5335265351516977
+        ],
+        [
+          "chong",
+          0.38719560185453333
+        ],
+        [
+          "look",
+          -0.13679762531679823
+        ],
+        [
+          "user",
+          -0.05078934706340524
+        ],
+        [
+          "new",
+          -0.023065694939344242
+        ]
+      ]
+    },
+    {
+      "text": "reminder to everyone wes bellamy is a nigger",
+      "label": 2,
+      "true_rationale_tokens": [
+        "nigger"
+      ],
+      "pred_lime_tokens": [
+        "nigger",
+        "bellamy",
+        "a"
+      ],
+      "iou": 0.3333333333333333,
+      "explanation": [
+        [
+          "nigger",
+          0.8736007331842269
+        ],
+        [
+          "a",
+          0.049513537889924145
+        ],
+        [
+          "reminder",
+          -0.041503269330554295
+        ],
+        [
+          "wes",
+          -0.023888707044683113
+        ],
+        [
+          "to",
+          -0.014341903245350122
+        ],
+        [
+          "is",
+          -0.013545110478413204
+        ],
+        [
+          "everyone",
+          -0.013041880121401794
+        ],
+        [
+          "bellamy",
+          0.005570785819096353
+        ]
+      ]
+    },
+    {
+      "text": "i m glad ds is back on dailystormer top and no kike will ever hold our movement down",
+      "label": 2,
+      "true_rationale_tokens": [
+        "kike"
+      ],
+      "pred_lime_tokens": [
+        "ever",
+        "i",
+        "is",
+        "no",
+        "glad",
+        "dailystormer",
+        "kike",
+        "will"
+      ],
+      "iou": 0.125,
+      "explanation": [
+        [
+          "kike",
+          0.9313645968396572
+        ],
+        [
+          "will",
+          0.008048252047556635
+        ],
+        [
+          "is",
+          0.006316282131609515
+        ],
+        [
+          "movement",
+          -0.005803761939163406
+        ],
+        [
+          "ever",
+          0.0034855165855257222
+        ],
+        [
+          "i",
+          0.0017110162356785198
+        ],
+        [
+          "dailystormer",
+          0.0009739197361638525
+        ],
+        [
+          "no",
+          0.0007811604556418602
+        ],
+        [
+          "and",
+          -0.00020824775205646336
+        ],
+        [
+          "glad",
+          0.0001518214555887513
+        ]
+      ]
+    },
+    {
+      "text": "this is much more than being about filthy mudsharks this is about the destiny of humanity does it become a dumbed down mulatto race where the west falls apart like africa and asians dominate the future or do we ship the nigs back where they belong",
+      "label": 2,
+      "true_rationale_tokens": [
+        "where",
+        "down",
+        "we",
+        "ship",
+        "back",
+        "mulatto",
+        "filthy",
+        "race",
+        "mudsharks",
+        "the",
+        "nigs",
+        "they",
+        "do",
+        "dumbed",
+        "belong"
+      ],
+      "pred_lime_tokens": [
+        "and",
+        "mulatto",
+        "nigs",
+        "race",
+        "mudsharks",
+        "filthy",
+        "dumbed"
+      ],
+      "iou": 0.375,
+      "explanation": [
+        [
+          "mudsharks",
+          0.25151830808817877
+        ],
+        [
+          "nigs",
+          0.19996393868358123
+        ],
+        [
+          "filthy",
+          0.08520690289735101
+        ],
+        [
+          "mulatto",
+          0.07069287454876551
+        ],
+        [
+          "does",
+          -0.060956131702499354
+        ],
+        [
+          "race",
+          0.05553550082527306
+        ],
+        [
+          "down",
+          -0.05122624963270656
+        ],
+        [
+          "and",
+          0.0474048023731856
+        ],
+        [
+          "dumbed",
+          0.036931699331586174
+        ],
+        [
+          "apart",
+          -0.031174630076266308
+        ]
+      ]
+    },
+    {
+      "text": "<user> \ud83d\ude2d \ud83d\ude2d \ud83d\ude2d okay cause she was mad as fuck like what the niggers do to you ma am \ud83d\ude2d \ud83d\ude2d",
+      "label": 1,
+      "true_rationale_tokens": [
+        "niggers"
+      ],
+      "pred_lime_tokens": [
+        "fuck",
+        "she",
+        "like",
+        "cause",
+        "ma"
+      ],
+      "iou": 0.0,
+      "explanation": [
+        [
+          "she",
+          0.18052976814161123
+        ],
+        [
+          "am",
+          -0.07437528583323232
+        ],
+        [
+          "okay",
+          -0.06708003078592478
+        ],
+        [
+          "the",
+          -0.06537741613780114
+        ],
+        [
+          "do",
+          -0.05717744190552806
+        ],
+        [
+          "fuck",
+          0.05126885822128261
+        ],
+        [
+          "ma",
+          0.05064304905004496
+        ],
+        [
+          "like",
+          0.02997453755447311
+        ],
+        [
+          "cause",
+          0.02819781461902141
+        ],
+        [
+          "niggers",
+          -0.027209100527264243
+        ]
+      ]
+    },
+    {
+      "text": "kepurdhat nkonzerve jon si mean girls 2 shi bitch you tried to do sum like the og but you flopped mad",
+      "label": 1,
+      "true_rationale_tokens": [
+        "tried",
+        "bitch",
+        "you"
+      ],
+      "pred_lime_tokens": [
+        "like",
+        "bitch",
+        "mean",
+        "shi"
+      ],
+      "iou": 0.16666666666666666,
+      "explanation": [
+        [
+          "bitch",
+          0.4717035064746119
+        ],
+        [
+          "2",
+          -0.22124933447441847
+        ],
+        [
+          "shi",
+          0.1054819182880597
+        ],
+        [
+          "mean",
+          0.1008180378973227
+        ],
+        [
+          "but",
+          -0.08489581127116808
+        ],
+        [
+          "kepurdhat",
+          -0.07380032366251985
+        ],
+        [
+          "like",
+          0.07194062042293616
+        ],
+        [
+          "tried",
+          -0.06610066182298338
+        ],
+        [
+          "jon",
+          -0.05744434049872173
+        ],
+        [
+          "sum",
+          -0.05551839435899306
+        ]
+      ]
+    },
+    {
+      "text": "o pleez god hates queers both 0 bamas are male both have a penis the mooch is a hideous anti america phony nothin to do with skin color hope mooch is jealous of our beautiful lady melania",
+      "label": 2,
+      "true_rationale_tokens": [
+        "god",
+        "hates",
+        "queers"
+      ],
+      "pred_lime_tokens": [
+        "america",
+        "queers",
+        "melania",
+        "our",
+        "penis",
+        "the",
+        "o",
+        "mooch"
+      ],
+      "iou": 0.1,
+      "explanation": [
+        [
+          "queers",
+          0.09860752383401257
+        ],
+        [
+          "mooch",
+          0.09737802922580736
+        ],
+        [
+          "the",
+          0.08609392526559405
+        ],
+        [
+          "pleez",
+          -0.07384618966490634
+        ],
+        [
+          "america",
+          0.07361179087314816
+        ],
+        [
+          "phony",
+          -0.0625940365234419
+        ],
+        [
+          "penis",
+          0.05827141734606827
+        ],
+        [
+          "melania",
+          0.057423565943398674
+        ],
+        [
+          "our",
+          0.05309767002990373
+        ],
+        [
+          "o",
+          0.040986545997743984
+        ]
+      ]
+    },
+    {
+      "text": "grown men subtweeting like bitches",
+      "label": 1,
+      "true_rationale_tokens": [
+        "bitches"
+      ],
+      "pred_lime_tokens": [
+        "grown",
+        "like",
+        "bitches"
+      ],
+      "iou": 0.3333333333333333,
+      "explanation": [
+        [
+          "bitches",
+          0.7681982496047438
+        ],
+        [
+          "like",
+          0.10295282247214232
+        ],
+        [
+          "subtweeting",
+          -0.05192194654629368
+        ],
+        [
+          "men",
+          -0.04547224087715834
+        ],
+        [
+          "grown",
+          0.032824088534445094
+        ]
+      ]
+    },
+    {
+      "text": "that is about the most faggot ass looking shit a man could wear bet ya any sumbitch that dons this bs is packing a man purse too",
+      "label": 2,
+      "true_rationale_tokens": [
+        "could",
+        "any",
+        "faggot",
+        "sumbitch",
+        "a",
+        "this",
+        "wear",
+        "shit",
+        "ass",
+        "that",
+        "dons",
+        "looking",
+        "man",
+        "most"
+      ],
+      "pred_lime_tokens": [
+        "any",
+        "sumbitch",
+        "faggot",
+        "shit",
+        "that"
+      ],
+      "iou": 0.35714285714285715,
+      "explanation": [
+        [
+          "faggot",
+          0.15043005868127374
+        ],
+        [
+          "ass",
+          -0.08792313166238806
+        ],
+        [
+          "sumbitch",
+          0.08216841397131572
+        ],
+        [
+          "that",
+          0.06868839831350296
+        ],
+        [
+          "could",
+          -0.05823899842092764
+        ],
+        [
+          "any",
+          0.05546794572599244
+        ],
+        [
+          "shit",
+          0.048686047140240336
+        ],
+        [
+          "bs",
+          -0.04548933238647021
+        ],
+        [
+          "most",
+          -0.04258664953061288
+        ],
+        [
+          "is",
+          -0.03643720291186158
+        ]
+      ]
+    },
+    {
+      "text": "what the fuck coca cola not a joke multicultural commercial featuring song america just had muslim immams and head bags and lyric god shed his grace on thee in arabic they really want us fucking dead",
+      "label": 2,
+      "true_rationale_tokens": [
+        "featuring",
+        "god",
+        "dead",
+        "bags",
+        "in",
+        "they",
+        "on",
+        "fucking",
+        "song",
+        "commercial",
+        "grace",
+        "joke",
+        "a",
+        "thee",
+        "really",
+        "his",
+        "us",
+        "coca",
+        "the",
+        "cola",
+        "lyric",
+        "shed",
+        "multicultural",
+        "fuck",
+        "america",
+        "want",
+        "and",
+        "immams",
+        "head",
+        "what",
+        "not",
+        "muslim",
+        "arabic",
+        "had",
+        "just"
+      ],
+      "pred_lime_tokens": [
+        "america",
+        "a",
+        "dead",
+        "muslim",
+        "arabic",
+        "want"
+      ],
+      "iou": 0.17142857142857143,
+      "explanation": [
+        [
+          "muslim",
+          0.10511760941497543
+        ],
+        [
+          "dead",
+          0.09711169628331857
+        ],
+        [
+          "lyric",
+          -0.05497939996244415
+        ],
+        [
+          "america",
+          0.05410304002680526
+        ],
+        [
+          "want",
+          0.04191991005887025
+        ],
+        [
+          "and",
+          -0.04166960665717338
+        ],
+        [
+          "arabic",
+          0.04121314217829822
+        ],
+        [
+          "commercial",
+          -0.03941151645204954
+        ],
+        [
+          "a",
+          0.03755144876206072
+        ],
+        [
+          "bags",
+          -0.030592096188828057
+        ]
+      ]
+    },
+    {
+      "text": "<user> the same people who defend a woman right to post ass pics on instagram are the same to try and push them out of a job and suddenly say it degrading to them will you ugly dykes pick something to be offended by and stick with it",
+      "label": 2,
+      "true_rationale_tokens": [
+        "ugly",
+        "you",
+        "dykes"
+      ],
+      "pred_lime_tokens": [
+        "defend",
+        "dykes",
+        "push",
+        "them",
+        "job"
+      ],
+      "iou": 0.14285714285714285,
+      "explanation": [
+        [
+          "dykes",
+          0.05922845038695344
+        ],
+        [
+          "by",
+          -0.019564491702757116
+        ],
+        [
+          "defend",
+          0.017634217192657772
+        ],
+        [
+          "ass",
+          -0.017036625067254667
+        ],
+        [
+          "instagram",
+          -0.01594247673819037
+        ],
+        [
+          "a",
+          -0.014404490059848623
+        ],
+        [
+          "you",
+          -0.014088949067245601
+        ],
+        [
+          "job",
+          0.010336473711859516
+        ],
+        [
+          "push",
+          0.009412164647846144
+        ],
+        [
+          "them",
+          0.007029494061480298
+        ]
+      ]
+    },
+    {
+      "text": "i hope the niglets keep going down on their knees its the only realistic depiction of blacks on fake news tv any chance of getting t shirts made that say <user> boycott nfl tebow rule cant pray owners are pleased with their blacks down on their knees",
+      "label": 1,
+      "true_rationale_tokens": [
+        "their",
+        "down",
+        "blacks",
+        "knees",
+        "on",
+        "niglets"
+      ],
+      "pred_lime_tokens": [
+        "nfl",
+        "going",
+        "fake",
+        "blacks",
+        "are"
+      ],
+      "iou": 0.1,
+      "explanation": [
+        [
+          "niglets",
+          -0.22140532891195278
+        ],
+        [
+          "tebow",
+          -0.06924644675470233
+        ],
+        [
+          "the",
+          -0.05705162839349771
+        ],
+        [
+          "blacks",
+          0.054714400434532004
+        ],
+        [
+          "knees",
+          -0.05470360519965708
+        ],
+        [
+          "cant",
+          -0.04594735489405424
+        ],
+        [
+          "nfl",
+          0.04457715040825537
+        ],
+        [
+          "fake",
+          0.04291738103694619
+        ],
+        [
+          "are",
+          0.037681383564187466
+        ],
+        [
+          "going",
+          0.03430695032372718
+        ]
+      ]
+    },
+    {
+      "text": "theyblove hezbollah they have admitted this id rather submit to a jew than even acknowledge a sandnigger terrorist group is even remotely okay not saying i would obviously",
+      "label": 2,
+      "true_rationale_tokens": [
+        "sandnigger"
+      ],
+      "pred_lime_tokens": [
+        "jew",
+        "theyblove",
+        "a",
+        "to",
+        "sandnigger"
+      ],
+      "iou": 0.2,
+      "explanation": [
+        [
+          "sandnigger",
+          0.7135894014291585
+        ],
+        [
+          "jew",
+          0.12204804500466654
+        ],
+        [
+          "a",
+          0.08171050068107359
+        ],
+        [
+          "theyblove",
+          0.03834409747856716
+        ],
+        [
+          "obviously",
+          -0.032298842842360835
+        ],
+        [
+          "not",
+          -0.027384700520163792
+        ],
+        [
+          "to",
+          0.019187282634861455
+        ],
+        [
+          "admitted",
+          -0.017604439641755343
+        ],
+        [
+          "group",
+          -0.016669959451869634
+        ],
+        [
+          "they",
+          -0.007678209330510491
+        ]
+      ]
+    },
+    {
+      "text": "jews pull the same shit on online forums close down all criticism of them and ban threaten people in sherdog i mentioned jews in a couple of posts and all of a sudden some mod is leaning on me the fucker has an illuminati avatar",
+      "label": 1,
+      "true_rationale_tokens": [
+        "same",
+        "pull",
+        "of",
+        "people",
+        "in",
+        "on",
+        "threaten",
+        "a",
+        "has",
+        "posts",
+        "some",
+        "fucker",
+        "couple",
+        "avatar",
+        "sudden",
+        "mentioned",
+        "i",
+        "is",
+        "down",
+        "ban",
+        "an",
+        "me",
+        "shit",
+        "the",
+        "online",
+        "them",
+        "leaning",
+        "mod",
+        "illuminati",
+        "and",
+        "all",
+        "criticism",
+        "forums",
+        "jews",
+        "close"
+      ],
+      "pred_lime_tokens": [
+        "has",
+        "avatar",
+        "forums",
+        "jews",
+        "sudden"
+      ],
+      "iou": 0.14285714285714285,
+      "explanation": [
+        [
+          "jews",
+          0.15229584760893106
+        ],
+        [
+          "fucker",
+          -0.10138284202225857
+        ],
+        [
+          "illuminati",
+          -0.05837823740656997
+        ],
+        [
+          "sudden",
+          0.04518858066478809
+        ],
+        [
+          "sherdog",
+          -0.0440607160921904
+        ],
+        [
+          "ban",
+          -0.04125354239371575
+        ],
+        [
+          "and",
+          -0.039957092080151
+        ],
+        [
+          "avatar",
+          0.03946265894735214
+        ],
+        [
+          "has",
+          0.036973574125835636
+        ],
+        [
+          "forums",
+          0.024399424124480575
+        ]
+      ]
+    },
+    {
+      "text": "my sister is having an all lesbian moneynigger taternigger fight watching party is boxing a thing among girlfags or something",
+      "label": 1,
+      "true_rationale_tokens": [
+        "lesbian",
+        "all",
+        "fight",
+        "moneynigger",
+        "taternigger",
+        "girlfags"
+      ],
+      "pred_lime_tokens": [
+        "having",
+        "party",
+        "lesbian",
+        "girlfags"
+      ],
+      "iou": 0.25,
+      "explanation": [
+        [
+          "girlfags",
+          0.21193280652562926
+        ],
+        [
+          "an",
+          -0.14024220970357415
+        ],
+        [
+          "my",
+          -0.11837844370818161
+        ],
+        [
+          "lesbian",
+          0.11598306571228482
+        ],
+        [
+          "taternigger",
+          -0.10510468024522797
+        ],
+        [
+          "party",
+          0.08358415596191364
+        ],
+        [
+          "moneynigger",
+          -0.07347182850855496
+        ],
+        [
+          "having",
+          0.06595624095531302
+        ],
+        [
+          "among",
+          -0.05578815904977797
+        ],
+        [
+          "fight",
+          -0.05467399784197725
+        ]
+      ]
+    },
+    {
+      "text": "we need to go back and beat them and i mean hard so hard that the muzzies are to scared to ever step up in the world again crush their spirits now and brutally at that",
+      "label": 2,
+      "true_rationale_tokens": [
+        "muzzies"
+      ],
+      "pred_lime_tokens": [
+        "muzzies",
+        "we",
+        "back",
+        "beat",
+        "the",
+        "world",
+        "them",
+        "step"
+      ],
+      "iou": 0.125,
+      "explanation": [
+        [
+          "muzzies",
+          0.8331385811764525
+        ],
+        [
+          "beat",
+          0.0415550010986658
+        ],
+        [
+          "them",
+          0.02809495480289537
+        ],
+        [
+          "we",
+          0.02759559786655379
+        ],
+        [
+          "world",
+          0.019389855121246642
+        ],
+        [
+          "the",
+          0.018859821207823094
+        ],
+        [
+          "step",
+          0.018238954442239334
+        ],
+        [
+          "back",
+          0.01646229076437495
+        ],
+        [
+          "hard",
+          -0.013878413828812119
+        ],
+        [
+          "scared",
+          -0.010798709249870118
+        ]
+      ]
+    },
+    {
+      "text": "what a fucking bitch lol conservatives are just as liberal as democrats that why they accept faggots nowadays will not be long before they accept trannies too",
+      "label": 1,
+      "true_rationale_tokens": [
+        "accept",
+        "faggots",
+        "trannies",
+        "bitch",
+        "fucking"
+      ],
+      "pred_lime_tokens": [
+        "nowadays",
+        "bitch",
+        "too"
+      ],
+      "iou": 0.14285714285714285,
+      "explanation": [
+        [
+          "faggots",
+          -0.219713769000861
+        ],
+        [
+          "bitch",
+          0.19475393293234516
+        ],
+        [
+          "accept",
+          -0.17035816287083327
+        ],
+        [
+          "that",
+          -0.07156195305616843
+        ],
+        [
+          "lol",
+          -0.07096152858347236
+        ],
+        [
+          "be",
+          -0.054256904914609015
+        ],
+        [
+          "nowadays",
+          0.053917380406493624
+        ],
+        [
+          "they",
+          -0.05084620286416466
+        ],
+        [
+          "long",
+          -0.04675216733792023
+        ],
+        [
+          "too",
+          0.03323470575853402
+        ]
+      ]
+    },
+    {
+      "text": "i am an american but i am ethnically chinese people often ask me what does ching chong ching chong mean i always answer it means go fuck yourself you retarded democrat speakfreely",
+      "label": 1,
+      "true_rationale_tokens": [
+        "often",
+        "does",
+        "people",
+        "always",
+        "ask",
+        "go",
+        "american",
+        "i",
+        "it",
+        "means",
+        "mean",
+        "an",
+        "but",
+        "me",
+        "you",
+        "democrat",
+        "ethnically",
+        "yourself",
+        "chinese",
+        "fuck",
+        "answer",
+        "am",
+        "ching",
+        "retarded",
+        "what",
+        "chong"
+      ],
+      "pred_lime_tokens": [
+        "am",
+        "retarded",
+        "ethnically",
+        "always",
+        "chinese",
+        "american"
+      ],
+      "iou": 0.23076923076923078,
+      "explanation": [
+        [
+          "retarded",
+          0.25443529172791535
+        ],
+        [
+          "ching",
+          -0.22553068901355658
+        ],
+        [
+          "fuck",
+          -0.16988080892269897
+        ],
+        [
+          "ethnically",
+          0.0678193694270902
+        ],
+        [
+          "chinese",
+          0.05375557885188401
+        ],
+        [
+          "mean",
+          -0.05109824581631616
+        ],
+        [
+          "american",
+          0.04241013505501703
+        ],
+        [
+          "yourself",
+          -0.035613399149883394
+        ],
+        [
+          "am",
+          0.03220480506834885
+        ],
+        [
+          "always",
+          0.0320867532705173
+        ]
+      ]
+    },
+    {
+      "text": "bringing in pro sharia law immigrants is like letting a drunk driver take kids to school on the bus it like letting a serial killer out of prison and hope he she has learned their lesson",
+      "label": 1,
+      "true_rationale_tokens": [
+        "pro",
+        "he",
+        "of",
+        "in",
+        "drunk",
+        "kids",
+        "on",
+        "to",
+        "take",
+        "their",
+        "a",
+        "has",
+        "out",
+        "bringing",
+        "law",
+        "it",
+        "is",
+        "hope",
+        "she",
+        "bus",
+        "prison",
+        "like",
+        "the",
+        "serial",
+        "lesson",
+        "immigrants",
+        "sharia",
+        "driver",
+        "killer",
+        "and",
+        "letting",
+        "school",
+        "learned"
+      ],
+      "pred_lime_tokens": [
+        "it",
+        "she",
+        "bus",
+        "school",
+        "prison",
+        "like",
+        "drunk",
+        "immigrants",
+        "sharia"
+      ],
+      "iou": 0.2727272727272727,
+      "explanation": [
+        [
+          "immigrants",
+          0.27217674131879416
+        ],
+        [
+          "prison",
+          0.11653924539448879
+        ],
+        [
+          "drunk",
+          0.08840183690112356
+        ],
+        [
+          "like",
+          0.06897430957788035
+        ],
+        [
+          "school",
+          0.06428293972213633
+        ],
+        [
+          "sharia",
+          0.0642610303611794
+        ],
+        [
+          "bus",
+          0.060866533140870475
+        ],
+        [
+          "she",
+          0.04763709404641949
+        ],
+        [
+          "it",
+          0.04012834254546533
+        ],
+        [
+          "driver",
+          -0.03444038298825162
+        ]
+      ]
+    },
+    {
+      "text": "because they go after the loan wolves they pick up mostly the native ones the immigrants tend to be in gangs that is not really the local perverts mo",
+      "label": 1,
+      "true_rationale_tokens": [
+        "in",
+        "tend",
+        "gangs",
+        "immigrants",
+        "to",
+        "be"
+      ],
+      "pred_lime_tokens": [
+        "go",
+        "because",
+        "loan",
+        "tend",
+        "they",
+        "the",
+        "gangs",
+        "immigrants",
+        "perverts"
+      ],
+      "iou": 0.25,
+      "explanation": [
+        [
+          "perverts",
+          0.23219481906139416
+        ],
+        [
+          "immigrants",
+          0.20024465884221293
+        ],
+        [
+          "gangs",
+          0.15556230798655768
+        ],
+        [
+          "loan",
+          0.07307258874258424
+        ],
+        [
+          "they",
+          0.06669045050908529
+        ],
+        [
+          "go",
+          0.06251962780864397
+        ],
+        [
+          "tend",
+          0.05381026968383012
+        ],
+        [
+          "because",
+          0.05099431903359732
+        ],
+        [
+          "the",
+          0.03805489193578627
+        ],
+        [
+          "pick",
+          -0.03788958759283376
+        ]
+      ]
+    },
+    {
+      "text": "holly serial killer wtf are you retard \ud83d\ude28 \ud83d\ude28 \ud83d\ude28",
+      "label": 1,
+      "true_rationale_tokens": [
+        "retard"
+      ],
+      "pred_lime_tokens": [
+        "you",
+        "serial",
+        "retard",
+        "wtf",
+        "killer"
+      ],
+      "iou": 0.2,
+      "explanation": [
+        [
+          "retard",
+          0.5946202722728745
+        ],
+        [
+          "wtf",
+          0.13535219102589394
+        ],
+        [
+          "killer",
+          0.0826279797043774
+        ],
+        [
+          "you",
+          0.05434382640271432
+        ],
+        [
+          "serial",
+          0.044090989929308017
+        ],
+        [
+          "are",
+          -0.04073992004396908
+        ],
+        [
+          "holly",
+          -0.03741158980920633
+        ]
+      ]
+    },
+    {
+      "text": "whatever ivan bollockov you keep flapping like a bitch i will get your dad to turn your wifi off and confiscate your phone",
+      "label": 1,
+      "true_rationale_tokens": [
+        "keep",
+        "a",
+        "you",
+        "like",
+        "bitch",
+        "flapping"
+      ],
+      "pred_lime_tokens": [
+        "whatever",
+        "you",
+        "bitch",
+        "flapping",
+        "bollockov"
+      ],
+      "iou": 0.375,
+      "explanation": [
+        [
+          "bitch",
+          0.328366827374383
+        ],
+        [
+          "bollockov",
+          0.17752716385136014
+        ],
+        [
+          "you",
+          0.15196207003905465
+        ],
+        [
+          "ivan",
+          -0.13973922701915295
+        ],
+        [
+          "whatever",
+          0.08320928193602416
+        ],
+        [
+          "like",
+          -0.08311969454947786
+        ],
+        [
+          "flapping",
+          0.08020960988291323
+        ],
+        [
+          "will",
+          -0.07464801213590265
+        ],
+        [
+          "i",
+          -0.0739970073035738
+        ],
+        [
+          "wifi",
+          -0.04102853112872794
+        ]
+      ]
+    },
+    {
+      "text": "would anyone actually expect a nigger to save a white man life",
+      "label": 2,
+      "true_rationale_tokens": [
+        "nigger"
+      ],
+      "pred_lime_tokens": [
+        "expect",
+        "a",
+        "nigger",
+        "save",
+        "white",
+        "would"
+      ],
+      "iou": 0.16666666666666666,
+      "explanation": [
+        [
+          "nigger",
+          0.888516696565351
+        ],
+        [
+          "save",
+          0.03311329463293363
+        ],
+        [
+          "expect",
+          0.01782660330454344
+        ],
+        [
+          "a",
+          0.015097317468029036
+        ],
+        [
+          "white",
+          0.012404589231567613
+        ],
+        [
+          "actually",
+          -0.010019652198629611
+        ],
+        [
+          "to",
+          -0.0031275347703247063
+        ],
+        [
+          "anyone",
+          -0.002560664207867737
+        ],
+        [
+          "would",
+          0.001670035678014053
+        ],
+        [
+          "man",
+          -0.0013246320012827565
+        ]
+      ]
+    },
+    {
+      "text": "how about i fire a lime off ya head you filthy paki bastard",
+      "label": 2,
+      "true_rationale_tokens": [
+        "paki",
+        "bastard",
+        "filthy"
+      ],
+      "pred_lime_tokens": [
+        "fire",
+        "you",
+        "bastard",
+        "filthy",
+        "head",
+        "paki",
+        "about"
+      ],
+      "iou": 0.42857142857142855,
+      "explanation": [
+        [
+          "paki",
+          0.5523022769319247
+        ],
+        [
+          "filthy",
+          0.14329861428701246
+        ],
+        [
+          "bastard",
+          0.10465216092665386
+        ],
+        [
+          "head",
+          0.0660271821189758
+        ],
+        [
+          "ya",
+          -0.05110790816205404
+        ],
+        [
+          "you",
+          0.036801099221053665
+        ],
+        [
+          "fire",
+          0.033171311249874894
+        ],
+        [
+          "about",
+          0.030021018756090506
+        ],
+        [
+          "off",
+          -0.028439548980336602
+        ],
+        [
+          "i",
+          -0.026269852168337236
+        ]
+      ]
+    },
+    {
+      "text": "have just another rabbit running on facebook under the honey badge guise this one is a little rocket wicked fun making jews dance the homo paedo dave slatfascists is unable to find me on facebook",
+      "label": 2,
+      "true_rationale_tokens": [
+        "homo",
+        "paedo",
+        "jews",
+        "slatfascists"
+      ],
+      "pred_lime_tokens": [
+        "making",
+        "a",
+        "slatfascists",
+        "badge",
+        "homo",
+        "jews",
+        "facebook"
+      ],
+      "iou": 0.375,
+      "explanation": [
+        [
+          "jews",
+          0.30314684738009684
+        ],
+        [
+          "unable",
+          -0.1378087236857954
+        ],
+        [
+          "making",
+          0.0941956779776091
+        ],
+        [
+          "facebook",
+          0.09141772296871323
+        ],
+        [
+          "badge",
+          0.08108224735526146
+        ],
+        [
+          "homo",
+          0.06154004460933164
+        ],
+        [
+          "little",
+          -0.06053114915913824
+        ],
+        [
+          "honey",
+          -0.05157395262596228
+        ],
+        [
+          "slatfascists",
+          0.04927416368461026
+        ],
+        [
+          "a",
+          0.04299914722859976
+        ]
+      ]
+    },
+    {
+      "text": "sick commie but who elected her they are fucking genetic fails too much nigger genes wipe out island seed with asians collect bumper tax revenues",
+      "label": 2,
+      "true_rationale_tokens": [
+        "much",
+        "too",
+        "fails",
+        "genetic",
+        "seed",
+        "asians",
+        "genes",
+        "commie",
+        "nigger",
+        "they",
+        "with",
+        "fucking",
+        "are"
+      ],
+      "pred_lime_tokens": [
+        "sick",
+        "seed",
+        "asians",
+        "nigger",
+        "tax",
+        "fucking",
+        "wipe"
+      ],
+      "iou": 0.25,
+      "explanation": [
+        [
+          "nigger",
+          0.744733965711182
+        ],
+        [
+          "commie",
+          -0.06191127675219547
+        ],
+        [
+          "wipe",
+          0.05791893754762873
+        ],
+        [
+          "asians",
+          0.05433217888204094
+        ],
+        [
+          "with",
+          -0.053308344386651156
+        ],
+        [
+          "tax",
+          0.05207769008811985
+        ],
+        [
+          "sick",
+          0.04053709973533304
+        ],
+        [
+          "seed",
+          0.030893014424088986
+        ],
+        [
+          "fucking",
+          0.0268811011670642
+        ],
+        [
+          "her",
+          -0.025825306388184997
+        ]
+      ]
+    },
+    {
+      "text": "<number> year old black man charged with raping a <number> year old child in al it no secret why the black man loves islam because that moo haamed guy tells me i gots to gets me a <number> year old maga <user> <user>",
+      "label": 2,
+      "true_rationale_tokens": [
+        "old",
+        "moo",
+        "to",
+        "tells",
+        "year",
+        "a",
+        "gets",
+        "that",
+        "gots",
+        "black",
+        "i",
+        "<number>",
+        "haamed",
+        "me",
+        "islam",
+        "the",
+        "loves",
+        "man",
+        "guy",
+        "why"
+      ],
+      "pred_lime_tokens": [
+        "black",
+        "it",
+        "haamed",
+        "islam",
+        "raping",
+        "that",
+        "maga"
+      ],
+      "iou": 0.17391304347826086,
+      "explanation": [
+        [
+          "raping",
+          0.12750487462050414
+        ],
+        [
+          "maga",
+          0.10148594182636898
+        ],
+        [
+          "islam",
+          0.09292079958655153
+        ],
+        [
+          "man",
+          -0.08681523098538352
+        ],
+        [
+          "black",
+          0.08291731817498464
+        ],
+        [
+          "haamed",
+          0.08167645023150252
+        ],
+        [
+          "that",
+          0.07098514828694223
+        ],
+        [
+          "tells",
+          -0.059724738770540485
+        ],
+        [
+          "with",
+          -0.053691566543397615
+        ],
+        [
+          "it",
+          0.034629765113224416
+        ]
+      ]
+    }
+  ]
+}
